@@ -1,0 +1,25 @@
+Cabal-Version:       >= 1.2
+Build-Type:          Simple
+Tested-With:         GHC
+Category:            Math
+Name:                statistics-dirichlet
+Version:             0.1
+Stability:           experimental
+License:             GPL
+License-File:        LICENSE
+Copyright:           (c) 2009 Felipe A. Lessa
+Author:              Felipe Almeida Lessa
+Maintainer:          felipe.lessa@gmail.com
+Synopsis:            Functions for working with Dirichlet densities and
+		     Dirichlet mixtures on uvectors.
+Description:
+    TODO
+
+Library
+  Build-Depends:
+    base >= 3, base <= 4, uvector == 0.1.*, hmatrix == 0.5.*
+  Ghc-Options: -Wall -O2 -ddump-simpl
+  Extensions:
+    BangPatterns
+  Exposed-Modules:
+    Math.Statistics.Dirichlet
