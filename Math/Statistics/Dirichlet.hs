@@ -83,13 +83,13 @@ deriveDD :: Predicate -> StepSize
          -> [TrainingVector] -> ST s (Result DirichletDensity)
 deriveDD _ _ [] = error "Dirichlet.deriveDD: empty training data"
 deriveDD (Pred maxIter' minDelta') (Step step) trainingData
- = join $ liftM3 train (filled size (exp 1)) (filled size 1) (newMU size)
+ = join $ return train `ap` filled size (exp 1) `ap` filled size 1
     where
       size = lengthU (head trainingData)
       trainingSize   = fromIntegral $ length trainingData
       trainingCounts = map (\t -> t :*: sumU t) trainingData
 
-      train !as !ws !old_as = go 0
+      train !as !ws = go 0
           where
             go !iter = do
               -- Precalculate values that don't change here
@@ -107,23 +107,20 @@ deriveDD (Pred maxIter' minDelta') (Step step) trainingData
                   writeMU ws i w_new
 
               -- Calculate new alpha's
-              memcpyMU as old_as size
-              forM_ [0..size-1] $ \i -> readMU ws i >>= writeMU as i . exp
+              delta <- calculateAlphas 0 0
 
               -- Verify convergence
-              delta <- calcDelta 0 0
               case (delta < minDelta', iter >= maxIter') of
                 (True, _) -> Result Delta   iter delta <$> finish
                 (_, True) -> Result MaxIter iter delta <$> finish
                 _         -> go (iter+1)
               where finish = DD <$> unsafeFreezeAllMU as
 
-            calcDelta i acc | i == size = return acc
-                            | otherwise = do new <- readMU as i
-                                             old <- readMU old_as i
-                                             let delta = abs (old - new)
-                                             calcDelta (i+1) (max acc delta)
-
-
-
-
+            calculateAlphas !i !acc
+                | i == size = return acc
+                | otherwise = do old_a <- readMU as i
+                                 new_w <- readMU ws i
+                                 let new_a = exp new_w
+                                 writeMU as i new_a
+                                 let delta = abs (old_a - new_a)
+                                 calculateAlphas (i+1) (max acc delta)
