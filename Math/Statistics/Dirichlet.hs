@@ -109,7 +109,7 @@ deriveDD :: DirichletDensity -> Predicate -> StepSize
 deriveDD _ _ _ [] = error "Dirichlet.deriveDD: empty training data"
 deriveDD (DD initial) (Pred maxIter' minDelta') (Step step) trainingData = runST train
     where
-      size = lengthU (head trainingData)
+      size = lengthU initial
       !trainingSize  = fromIntegral $ length trainingData
       trainingCounts = map (\t -> t :*: sumU t) trainingData
 
