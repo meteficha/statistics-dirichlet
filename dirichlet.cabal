@@ -17,7 +17,7 @@ Description:
 
 Library
   Build-Depends:
-    base >= 3, base <= 4, uvector == 0.1.*, hmatrix == 0.5.*
+    base >= 3 && < 5, hmatrix == 0.5.*, uvector == 0.1.*
   Ghc-Options: -Wall -O2 -ddump-simpl
   Extensions:
     BangPatterns,
