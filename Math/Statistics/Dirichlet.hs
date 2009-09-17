@@ -96,6 +96,11 @@ kahanSum (y:ys) = go 0 y ys
 data DirichletDensity = DD !(UArr Double)
                         deriving (Eq, Show)
 
+-- | @emptyDD n x@ is an \"empty\" Dirichlet density with size
+--   @n@ and all alphas set to @x@.
+emptyDD :: Int -> Double -> DirichletDensity
+emptyDD = (DD .) . replicateU
+
 -- | Derive a Dirichlet density using a maximum likelihood method
 --   as described by Karplus et al.  All training vectors should
 --   have the same length, however this is not verified.
