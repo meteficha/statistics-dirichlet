@@ -9,7 +9,18 @@
 --
 --------------------------------------------------------------------------
 
-module Math.Statistics.Dirichlet where
+module Math.Statistics.Dirichlet
+    (TrainingVector
+    ,StepSize(..)
+    ,Predicate(..)
+    ,Reason(..)
+    ,Result(..)
+
+    ,DirichletDensity
+    ,emptyDD
+    ,deriveDD
+    ,costDD)
+    where
 
 import Control.Applicative
 import Control.Monad
