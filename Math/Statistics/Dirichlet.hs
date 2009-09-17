@@ -16,7 +16,7 @@ module Math.Statistics.Dirichlet
     ,Reason(..)
     ,Result(..)
 
-    ,DirichletDensity
+    ,DirichletDensity(..)
     ,emptyDD
     ,deriveDD
     ,costDD)
