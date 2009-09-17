@@ -20,6 +20,7 @@ Library
     base >= 3, base <= 4, uvector == 0.1.*, hmatrix == 0.5.*
   Ghc-Options: -Wall -O2 -ddump-simpl
   Extensions:
-    BangPatterns
+    BangPatterns,
+    TypeOperators
   Exposed-Modules:
     Math.Statistics.Dirichlet
