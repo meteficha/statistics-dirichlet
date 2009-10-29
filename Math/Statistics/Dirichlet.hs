@@ -26,6 +26,7 @@ module Math.Statistics.Dirichlet
 import Control.Applicative
 import Control.Monad
 import Control.Monad.ST
+import Control.Parallel.Strategies (NFData(..), rwhnf)
 import Data.Array.Vector
 import Numeric.GSL.Special.Gamma (lngamma, lnbeta)
 import Numeric.GSL.Special.Psi (psi)
@@ -36,6 +37,9 @@ import Numeric.GSL.Special.Psi (psi)
 --   the polymorphic (:*:) because GHC 6.10 can't unbox function
 --   returns (see Don's statistics-fusion).
 data DoublePair = (:**:) {-# UNPACK #-} !Double {-# UNPACK #-} !Double
+
+instance NFData DoublePair where
+    rnf = rwhnf
 
 -- | Logarithm of the beta function applied to a vector.
 logBeta :: UArr Double -> Double
@@ -77,6 +81,9 @@ data Result a = Result {reason    :: !Reason
                        ,result    :: !a}
                 deriving (Eq, Show)
 
+instance NFData a => NFData (Result a) where
+    rnf = rnf . result
+
 
 
 
@@ -111,6 +118,9 @@ kahanSum (y:ys) = go 0 y ys
 -- | A Dirichlet density.
 data DirichletDensity = DD !(UArr Double)
                         deriving (Eq, Show)
+
+instance NFData DirichletDensity where
+    rnf = rwhnf
 
 -- | @emptyDD n x@ is an \"empty\" Dirichlet density with size
 --   @n@ and all alphas set to @x@.
