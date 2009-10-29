@@ -12,6 +12,7 @@
 module Math.Statistics.Dirichlet
     (TrainingVector
     ,StepSize(..)
+    ,Delta
     ,Predicate(..)
     ,Reason(..)
     ,Result(..)
@@ -53,10 +54,14 @@ type TrainingVector = UArr Double
 --   much less than one.
 newtype StepSize = Step Double
 
+-- | Maximum difference between costs to consider that the
+--   process converged.
+type Delta = Double
+
 -- | Predicate specifying when the training should be over.
 data Predicate = Pred
     {maxIter  :: !Int    -- ^ Maximum number of iterations.
-    ,minDelta :: !Double -- ^ Minimum delta to continue iterating.
+    ,minDelta :: !Delta  -- ^ Minimum delta to continue iterating.
     }
                  deriving (Eq, Show)
 
@@ -67,7 +72,7 @@ data Reason = Delta | MaxIter
 -- | Result of a deriviation.
 data Result a = Result {reason    :: !Reason
                        ,iters     :: !Int
-                       ,lastDelta :: !Double
+                       ,lastDelta :: !Delta
                        ,lastCost  :: !Double
                        ,result    :: !a}
                 deriving (Eq, Show)
