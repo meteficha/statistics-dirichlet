@@ -67,11 +67,11 @@ data Predicate = Pred
     {maxIter  :: !Int    -- ^ Maximum number of iterations.
     ,minDelta :: !Delta  -- ^ Minimum delta to continue iterating.
     }
-                 deriving (Eq, Show)
+                 deriving (Eq, Read, Show)
 
 -- | Reason why the derivation was over.
 data Reason = Delta | MaxIter
-              deriving (Eq, Show, Enum)
+              deriving (Eq, Read, Show, Enum)
 
 -- | Result of a deriviation.
 data Result a = Result {reason    :: !Reason
@@ -79,7 +79,7 @@ data Result a = Result {reason    :: !Reason
                        ,lastDelta :: !Delta
                        ,lastCost  :: !Double
                        ,result    :: !a}
-                deriving (Eq, Show)
+                deriving (Eq, Read, Show)
 
 instance NFData a => NFData (Result a) where
     rnf = rnf . result
@@ -117,7 +117,7 @@ kahanSum (y:ys) = go 0 y ys
 
 -- | A Dirichlet density.
 data DirichletDensity = DD !(UArr Double)
-                        deriving (Eq, Show)
+                        deriving (Eq, Read, Show)
 
 instance NFData DirichletDensity where
     rnf = rwhnf
