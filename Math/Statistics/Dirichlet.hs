@@ -174,7 +174,8 @@ deriveDD (DD initial) (Pred maxIter' minDelta') (Step step) trainingData = runST
            writeMU ws     i w_new
            writeMU new_as i (exp w_new) -- do not write in 'as'!
 
--- | Cost function for deriving a Dirichlet density.  This function is minimized.
+-- | Cost function for deriving a Dirichlet density.  This
+--   function is minimized by 'deriveDD'.
 costDD :: DirichletDensity -> [TrainingVector] -> Double
 costDD (DD arr) tv = runST (go $ map (\t -> t :*: sumU t) tv)
     where
@@ -184,6 +185,10 @@ costDD (DD arr) tv = runST (go $ map (\t -> t :*: sumU t) tv)
                  sumAs <- kahanSumMU alphas
                  costDD' alphas sumAs tc
 
+-- | 'costDD' needs to calculate the sum of all training vectors.
+--   This functios avoids recalculting this quantity in
+--   'deriveDD' multiple times.  This is the used by both
+--   'costDD' and 'deriveDD'.
 costDD' :: MUArr Double s -> Double -> [TrainingVector :*: Double] -> ST s Double
 costDD' alphas sumAs trainingCounts =
     let lngammaSumAs = lngamma sumAs
