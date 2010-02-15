@@ -26,6 +26,7 @@ module Math.Statistics.Dirichlet
     where
 
 import qualified Data.Vector as V
+import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
 
 import Control.Parallel.Strategies (NFData(..), rwhnf)
@@ -99,7 +100,7 @@ deriveDD _ _ _ t | V.length t == 0 = error "Dirichlet.deriveDD: empty training d
 deriveDD (DD initial) (Pred maxIter' minDelta') (Step step) trainingData = train
     where
       !trainingSize = fromIntegral $ V.length trainingData
-      trainingSums  = V.map U.sum trainingData
+      trainingSums  = G.unstream $ G.stream $ V.map U.sum trainingData
 
       train =
         -- Initialization
@@ -121,7 +122,7 @@ deriveDD (DD initial) (Pred maxIter' minDelta') (Step step) trainingData = train
              (_, True) -> Result MaxIter iter delta cost' (DD as')
              _         -> train' (iter+1) cost' sumAs' (psi sumAs') ws' as'
        where
-         psiSums = V.sum $ V.map (\sumT -> psi $ sumT + sumAs) trainingSums
+         psiSums = U.sum $ U.map (\sumT -> psi $ sumT + sumAs) trainingSums
          calculateAlphas i w_old a_old =
            let s1 = trainingSize * (psiSumAs - psi a_old)
                s2 = V.sum $ V.map (\t -> psi $ t U.! i + a_old) trainingData
@@ -130,18 +131,19 @@ deriveDD (DD initial) (Pred maxIter' minDelta') (Step step) trainingData = train
 -- | Cost function for deriving a Dirichlet density.  This
 --   function is minimized by 'deriveDD'.
 costDD :: DirichletDensity -> V.Vector TrainingVector -> Double
-costDD (DD arr) tv = costDD' arr (U.sum arr) tv (V.map U.sum tv)
+costDD (DD arr) tv = costDD' arr (U.sum arr) tv $
+                     G.unstream $ G.stream $ V.map U.sum tv
 
 -- | 'costDD' needs to calculate the sum of all training vectors.
 --   This functios avoids recalculting this quantity in
 --   'deriveDD' multiple times.  This is the used by both
 --   'costDD' and 'deriveDD'.
-costDD' :: U.Vector Double -> Double -> V.Vector TrainingVector -> V.Vector Double -> Double
+costDD' :: U.Vector Double -> Double -> V.Vector TrainingVector -> U.Vector Double -> Double
 costDD' alphas sumAs trainingData trainingSums =
     let lngammaSumAs = lngamma sumAs
         f t = U.sum $ U.zipWith w t alphas
             where w t_i a_i = lngamma (t_i + a_i) - lngamma (t_i + 1) - lngamma a_i
         g sumT = lngamma (sumT+1) + lngammaSumAs - lngamma (sumT + sumAs)
     in negate $ (V.sum $ V.map f trainingData)
-              + (V.sum $ V.map g trainingSums)
+              + (U.sum $ U.map g trainingSums)
 {-# INLINE costDD' #-}
