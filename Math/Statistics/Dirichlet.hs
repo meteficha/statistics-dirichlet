@@ -26,14 +26,8 @@ module Math.Statistics.Dirichlet
     where
 
 import qualified Data.Vector as V
-import qualified Data.Vector.Generic as G
-import qualified Data.Vector.Generic.Mutable as MG
 import qualified Data.Vector.Unboxed as U
-import qualified Data.Vector.Unboxed.Mutable as MU
 
-import Control.Applicative
-import Control.Monad
-import Control.Monad.ST
 import Control.Parallel.Strategies (NFData(..), rwhnf)
 import Numeric.GSL.Special.Gamma (lngamma, lnbeta)
 import Numeric.GSL.Special.Psi (psi)
@@ -82,24 +76,6 @@ instance NFData a => NFData (Result a) where
     rnf = rnf . result
 
 
---------------
-sumMU :: Int -> MU.MVector s Double -> ST s Double
-sumMU size vector = go size 0
-    where
-      go i s | s `seq` i < 0 = return s
-             | otherwise     = do x <- MU.read vector i
-                                  go i (s+x)
-
-mutable :: U.Vector Double -> ST s (MU.MVector s Double)
-mutable = MG.unstream . G.stream
-
-immutable :: MU.MVector s Double -> ST s (U.Vector Double)
-immutable v = do let n = MU.length v
-                 r <- MU.new n
-                 MU.copy r v
-                 G.unsafeFreeze r
---------------
-
 
 
 -- | A Dirichlet density.
@@ -120,51 +96,36 @@ emptyDD = (DD .) . U.replicate
 deriveDD :: DirichletDensity -> Predicate -> StepSize
          -> V.Vector TrainingVector -> Result DirichletDensity
 deriveDD _ _ _ t | V.length t == 0 = error "Dirichlet.deriveDD: empty training data"
-deriveDD (DD initial) (Pred maxIter' minDelta') (Step step) trainingData = runST train
+deriveDD (DD initial) (Pred maxIter' minDelta') (Step step) trainingData = train
     where
       size = U.length initial
       !trainingSize  = fromIntegral $ V.length trainingData
       trainingCounts = V.map (\t -> (t, U.sum t)) trainingData
 
-      train = do
+      train =
         -- Initialization
-        as <- mutable initial
-        ws <- mutable $ U.map log initial
-        new_as <- MU.new size
-        sumAs <- sumMU size as
-        train' 0 1e100 sumAs (psi sumAs) ws as new_as
-      train' :: Int -> Double -> Double -> Double -> MU.MVector s Double
-             -> MU.MVector s Double -> MU.MVector s Double
-             -> ST s (Result DirichletDensity)
-      train' !iter !oldCost !sumAs !psiSumAs !ws !as !new_as = do
+        let as    = initial
+            ws    = U.map log as
+            sumAs = U.sum as
+        in train' 0 1e100 sumAs (psi sumAs) ws as
+      train' !iter !cost !sumAs !psiSumAs !ws !as =
         -- Reestimate alpha's
-        mapM_ calculateAlphas [0..size-1]
-        newSumAs <- sumMU size new_as
-        new_as'  <- immutable new_as
-        let newCost = costDD' size new_as' newSumAs trainingCounts
+        let ws'    = U.izipWith calculateAlphas ws as
+            as'    = U.map exp ws'
+            sumAs' = U.sum as'
+            cost'  = costDD' size as' sumAs' trainingCounts
+            delta  = abs (cost' - cost)
 
         -- Verify convergence
-        let delta = abs (newCost - oldCost)
-        case (delta <= minDelta', iter >= maxIter') of
-          (True, _) -> Result Delta   iter delta newCost <$> finish
-          (_, True) -> Result MaxIter iter delta newCost <$> finish
-          _         -> train' (iter+1) newCost newSumAs (psi newSumAs) ws new_as as
-                       -- yes! we swap as with new_as
+        in case (delta <= minDelta', iter >= maxIter') of
+             (True, _) -> Result Delta   iter delta cost' (DD as')
+             (_, True) -> Result MaxIter iter delta cost' (DD as')
+             _         -> train' (iter+1) cost' sumAs' (psi sumAs') ws' as'
        where
-         finish = DD <$> G.unsafeFreeze new_as
-         calculateAlphas !i = do
-           -- Old values
-           w_old <- MU.read ws i
-           a_old <- MU.read as i
-
-           -- New values
+         calculateAlphas i w_old a_old =
            let s1 = trainingSize * (psiSumAs - psi a_old)
-               s2 = V.map (\(t, sumT) -> psi (t U.! i + a_old) -
-                                         psi (sumT + sumAs))
-                          trainingCounts
-               w_new = w_old + step * a_old * (s1 + V.sum s2)
-           MU.write ws     i w_new
-           MU.write new_as i (exp w_new) -- do not write in 'as'!
+               f (t, sumT) = psi (t U.! i + a_old) - psi (sumT + sumAs)
+           in w_old + step * a_old * (s1 + V.sum (V.map f trainingCounts))
 
 -- | Cost function for deriving a Dirichlet density.  This
 --   function is minimized by 'deriveDD'.
