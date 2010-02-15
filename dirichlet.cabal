@@ -17,10 +17,8 @@ Description:
 
 Library
   Build-Depends:
-    base >= 3 && < 5, hmatrix >= 0.1 && < 0.9, uvector == 0.1.*, parallel >= 1.0 && < 1.2
+    base >= 3 && < 5, hmatrix >= 0.1 && < 0.9, vector == 0.5.*, parallel >= 1.0 && < 1.2
   Ghc-Options: -Wall -O2
-  Extensions:
-    BangPatterns,
-    TypeOperators
+  Extensions: BangPatterns
   Exposed-Modules:
     Math.Statistics.Dirichlet
