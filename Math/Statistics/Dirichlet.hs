@@ -20,7 +20,9 @@ module Math.Statistics.Dirichlet
     ,DirichletDensity(..)
     ,emptyDD
     ,deriveDD
-    ,costDD)
+    ,costDD
+
+    ,logBeta)
     where
 
 import Control.Applicative
