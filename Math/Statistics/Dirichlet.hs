@@ -100,33 +100,35 @@ deriveDD _ _ _ t | V.length t == 0 = error "Dirichlet.deriveDD: empty training d
 deriveDD (DD initial) (Pred maxIter' minDelta') (Step step) trainingData = train
     where
       !trainingSize = fromIntegral $ V.length trainingData
-      trainingSums  = G.unstream $ G.stream $ V.map U.sum trainingData
+      !trainingSums = G.unstream $ G.stream $ V.map U.sum trainingData
+      calcSumAs = U.sum . snd . U.unzip
+      finish    = DD    . snd . U.unzip
 
       train =
         -- Initialization
-        let as    = initial
-            ws    = U.map log as
-            sumAs = U.sum as
-        in train' 0 1e100 sumAs (psi sumAs) ws as
-      train' !iter !cost !sumAs !psiSumAs !ws !as =
+        let !alphas = U.map (\x -> (log x, x)) initial -- (log alpha, alpha)
+        in train' 0 1e100 (calcSumAs alphas) alphas
+      train' !iter !cost !sumAs !alphas =
         -- Reestimate alpha's
-        let ws'    = U.izipWith calculateAlphas ws as
-            as'    = U.map exp ws'
-            sumAs' = U.sum as'
-            cost'  = costDD' as' sumAs' trainingData trainingSums
-            delta  = abs (cost' - cost)
+        let !alphas' = U.imap calculateAlphas alphas
+            !sumAs'  = calcSumAs alphas'
+            !cost'   = costDD' (snd $ U.unzip alphas') sumAs' trainingData trainingSums
+            !delta   = abs (cost' - cost)
 
         -- Verify convergence
         in case (delta <= minDelta', iter >= maxIter') of
-             (True, _) -> Result Delta   iter delta cost' (DD as')
-             (_, True) -> Result MaxIter iter delta cost' (DD as')
-             _         -> train' (iter+1) cost' sumAs' (psi sumAs') ws' as'
+             (True, _) -> Result Delta   iter delta cost' $ finish alphas'
+             (_, True) -> Result MaxIter iter delta cost' $ finish alphas'
+             _         -> train' (iter+1) cost' sumAs' alphas'
        where
-         psiSums = U.sum $ U.map (\sumT -> psi $ sumT + sumAs) trainingSums
-         calculateAlphas i w_old a_old =
-           let s1 = trainingSize * (psiSumAs - psi a_old)
-               s2 = V.sum $ V.map (\t -> psi $ t U.! i + a_old) trainingData
-           in w_old + step * a_old * (s1 + s2 - psiSums)
+         !psiSumAs = psi sumAs
+         !psiSums  = U.sum $ U.map (\sumT -> psi $ sumT + sumAs) trainingSums
+         calculateAlphas !i (!w, !a) =
+           let !s1 = trainingSize * (psiSumAs - psi a)
+               !s2 = V.sum $ V.map (\t -> psi $ t U.! i + a) trainingData
+               !w' = w + step * a * (s1 + s2 - psiSums)
+               !a' = exp w'
+           in (w', a')
 
 -- | Cost function for deriving a Dirichlet density.  This
 --   function is minimized by 'deriveDD'.
@@ -139,8 +141,8 @@ costDD (DD arr) tv = costDD' arr (U.sum arr) tv $
 --   'deriveDD' multiple times.  This is the used by both
 --   'costDD' and 'deriveDD'.
 costDD' :: U.Vector Double -> Double -> V.Vector TrainingVector -> U.Vector Double -> Double
-costDD' alphas sumAs trainingData trainingSums =
-    let lngammaSumAs = lngamma sumAs
+costDD' !alphas !sumAs !trainingData !trainingSums =
+    let !lngammaSumAs = lngamma sumAs
         f t = U.sum $ U.zipWith w t alphas
             where w t_i a_i = lngamma (t_i + a_i) - lngamma (t_i + 1) - lngamma a_i
         g sumT = lngamma (sumT+1) + lngammaSumAs - lngamma (sumT + sumAs)
