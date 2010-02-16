@@ -11,6 +11,7 @@
 
 module Math.Statistics.Dirichlet
     (TrainingVector
+    ,TrainingVectors
     ,StepSize(..)
     ,Delta
     ,Predicate(..)
@@ -44,6 +45,10 @@ logBeta xs | U.length xs == 2 = lnbeta (U.head xs) (U.last xs)
 -- | A vector used for deriving the parameters of a Dirichlet
 --   density or mixture.
 type TrainingVector = U.Vector Double
+
+-- | A vector of training vectors.  This is the only vector that
+-- is not unboxed (for obvious reasons).
+type TrainingVectors = V.Vector TrainingVector
 
 -- | Usually denoted by lowercase greek letter eta (η), size of
 --   each step in the gradient. Should be greater than zero and
@@ -95,7 +100,7 @@ emptyDD = (DD .) . U.replicate
 --   as described by Karplus et al.  All training vectors should
 --   have the same length, however this is not verified.
 deriveDD :: DirichletDensity -> Predicate -> StepSize
-         -> V.Vector TrainingVector -> Result DirichletDensity
+         -> TrainingVectors -> Result DirichletDensity
 deriveDD _ _ _ t | V.length t == 0 = error "Dirichlet.deriveDD: empty training data"
 deriveDD (DD initial) (Pred maxIter' minDelta') (Step step) trainingData = train
     where
@@ -132,7 +137,7 @@ deriveDD (DD initial) (Pred maxIter' minDelta') (Step step) trainingData = train
 
 -- | Cost function for deriving a Dirichlet density.  This
 --   function is minimized by 'deriveDD'.
-costDD :: DirichletDensity -> V.Vector TrainingVector -> Double
+costDD :: DirichletDensity -> TrainingVectors -> Double
 costDD (DD arr) tv = costDD' arr (U.sum arr) tv $
                      G.unstream $ G.stream $ V.map U.sum tv
 
@@ -140,7 +145,7 @@ costDD (DD arr) tv = costDD' arr (U.sum arr) tv $
 --   This functios avoids recalculting this quantity in
 --   'deriveDD' multiple times.  This is the used by both
 --   'costDD' and 'deriveDD'.
-costDD' :: U.Vector Double -> Double -> V.Vector TrainingVector -> U.Vector Double -> Double
+costDD' :: U.Vector Double -> Double -> TrainingVectors -> U.Vector Double -> Double
 costDD' !alphas !sumAs !trainingData !trainingSums =
     let !lngammaSumAs = lngamma sumAs
         f t = U.sum $ U.zipWith w t alphas
