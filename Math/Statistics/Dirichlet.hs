@@ -85,8 +85,8 @@ instance NFData a => NFData (Result a) where
 
 
 -- | A Dirichlet density.
-data DirichletDensity = DD !(U.Vector Double)
-                        deriving (Eq, Show)
+newtype DirichletDensity = DD (U.Vector Double)
+                           deriving (Eq, Show)
 
 instance NFData DirichletDensity where
     rnf = rwhnf
