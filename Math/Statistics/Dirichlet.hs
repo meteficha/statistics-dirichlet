@@ -95,6 +95,7 @@ instance NFData DirichletDensity where
 --   @n@ and all alphas set to @x@.
 emptyDD :: Int -> Double -> DirichletDensity
 emptyDD = (DD .) . U.replicate
+{-# INLINE emptyDD #-}
 
 -- | Derive a Dirichlet density using a maximum likelihood method
 --   as described by Karplus et al.  All training vectors should
@@ -109,31 +110,31 @@ deriveDD (DD initial) (Pred maxIter' minDelta') (Step step) trainingData = train
       calcSumAs = U.sum . snd . U.unzip
       finish    = DD    . snd . U.unzip
 
-      train =
-        -- Initialization
-        let !alphas = U.map (\x -> (log x, x)) initial -- (log alpha, alpha)
-        in train' 0 1e100 (calcSumAs alphas) alphas
+      train = train' 0 1e100 (calcSumAs alphas) $
+              U.map (\x -> (log x, x)) initial
+
       train' !iter !cost !sumAs !alphas =
         -- Reestimate alpha's
-        let !alphas' = U.imap calculateAlphas alphas
-            !sumAs'  = calcSumAs alphas'
-            !cost'   = costDD' (snd $ U.unzip alphas') sumAs' trainingData trainingSums
-            !delta   = abs (cost' - cost)
+        let !alphas'  = U.imap calculateAlphas alphas
+            !psiSumAs = psi sumAs
+            !psiSums  = U.sum $ U.map (\sumT -> psi $ sumT + sumAs) trainingSums
+            calculateAlphas !i (!w, !a) =
+              let !s1 = trainingSize * (psiSumAs - psi a)
+                  !s2 = V.sum $ V.map (\t -> psi $ t U.! i + a) trainingData
+                  !w' = w + step * a * (s1 + s2 - psiSums)
+                  !a' = exp w'
+              in (w', a')
+
+        -- Recalculate constants
+            !sumAs'   = calcSumAs alphas'
+            !cost'    = costDD' (snd $ U.unzip alphas') sumAs' trainingData trainingSums
+            !delta    = abs (cost' - cost)
 
         -- Verify convergence
         in case (delta <= minDelta', iter >= maxIter') of
              (True, _) -> Result Delta   iter delta cost' $ finish alphas'
              (_, True) -> Result MaxIter iter delta cost' $ finish alphas'
              _         -> train' (iter+1) cost' sumAs' alphas'
-       where
-         !psiSumAs = psi sumAs
-         !psiSums  = U.sum $ U.map (\sumT -> psi $ sumT + sumAs) trainingSums
-         calculateAlphas !i (!w, !a) =
-           let !s1 = trainingSize * (psiSumAs - psi a)
-               !s2 = V.sum $ V.map (\t -> psi $ t U.! i + a) trainingData
-               !w' = w + step * a * (s1 + s2 - psiSums)
-               !a' = exp w'
-           in (w', a')
 
 -- | Cost function for deriving a Dirichlet density.  This
 --   function is minimized by 'deriveDD'.
