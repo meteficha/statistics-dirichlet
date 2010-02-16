@@ -61,8 +61,16 @@ type Delta = Double
 
 -- | Predicate specifying when the training should be over.
 data Predicate = Pred
-    {maxIter  :: !Int    -- ^ Maximum number of iterations.
-    ,minDelta :: !Delta  -- ^ Minimum delta to continue iterating.
+    {maxIter    :: !Int    -- ^ Maximum number of iterations.
+    ,minDelta   :: !Delta  -- ^ Minimum delta to continue iterating.
+                           --   This is invariant of @deltaSteps@, which
+                           --   means that if @deltaSteps@ is @2@ then
+                           --   minDelta will be considered twice bigger
+                           --   to account for the different @deltaSteps@.
+    ,deltaSteps :: !Int    -- ^ How many estimation steps should be done
+                           --   before recalculating the delta.  If
+                           --   @deltaSteps@ is @1@ then it will be
+                           --   recalculated on every step.
     }
                  deriving (Eq, Read, Show)
 
@@ -97,24 +105,48 @@ emptyDD :: Int -> Double -> DirichletDensity
 emptyDD = (DD .) . U.replicate
 {-# INLINE emptyDD #-}
 
+infinity :: Double
+infinity = 1e100
+
 -- | Derive a Dirichlet density using a maximum likelihood method
 --   as described by Karplus et al.  All training vectors should
 --   have the same length, however this is not verified.
 deriveDD :: DirichletDensity -> Predicate -> StepSize
          -> TrainingVectors -> Result DirichletDensity
-deriveDD _ _ _ t | V.length t == 0 = error "Dirichlet.deriveDD: empty training data"
-deriveDD (DD initial) (Pred maxIter' minDelta') (Step step) trainingData = train
+deriveDD (DD initial) (Pred maxIter' minDelta_ deltaSteps')
+             (Step step) trainingData
+    | V.length trainingData == 0 = err "empty training data"
+    | U.length initial < 1       = err "empty initial vector"
+    | maxIter' < 1               = err "non-positive maxIter"
+    | minDelta_ < 0              = err "negative minDelta"
+    | deltaSteps' < 1            = err "non-positive deltaSteps"
+    | step <= 0                  = err "non-positive step"
+    | step >= 1                  = err "step greater than one"
+    | otherwise                  = train
     where
+      err = error . ("Dirichlet.deriveDD: " ++)
+
+      -- Compensate the different deltaSteps.
+      !minDelta'    = minDelta_ * fromIntegral deltaSteps'
+
+      -- Number of training sequences.
       !trainingSize = fromIntegral $ V.length trainingData
+
+      -- Sums of each training sequence.
+      trainingSums :: U.Vector Double
       !trainingSums = G.unstream $ G.stream $ V.map U.sum trainingData
+
+      -- Functions that work on the alphas only (and not their logs).
       calcSumAs = U.sum . snd . U.unzip
       finish    = DD    . snd . U.unzip
 
-      train = train' 0 1e100 (calcSumAs alphas) $
+      -- Start training in the zero-th iteration and with
+      -- infinite inital cost.
+      train = train' 0 infinity (U.sum initial) $
               U.map (\x -> (log x, x)) initial
 
       train' !iter !cost !sumAs !alphas =
-        -- Reestimate alpha's
+        -- Reestimate alpha's.
         let !alphas'  = U.imap calculateAlphas alphas
             !psiSumAs = psi sumAs
             !psiSums  = U.sum $ U.map (\sumT -> psi $ sumT + sumAs) trainingSums
@@ -125,16 +157,22 @@ deriveDD (DD initial) (Pred maxIter' minDelta') (Step step) trainingData = train
                   !a' = exp w'
               in (w', a')
 
-        -- Recalculate constants
+        -- Recalculate constants.
             !sumAs'   = calcSumAs alphas'
-            !cost'    = costDD' (snd $ U.unzip alphas') sumAs' trainingData trainingSums
+            !calcCost = iter `mod` deltaSteps' == 0
+            !cost'    = if calcCost then costDD' (snd $ U.unzip alphas') sumAs'
+                                                 trainingData trainingSums
+                                    else cost -- use old cost
             !delta    = abs (cost' - cost)
 
-        -- Verify convergence
-        in case (delta <= minDelta', iter >= maxIter') of
-             (True, _) -> Result Delta   iter delta cost' $ finish alphas'
-             (_, True) -> Result MaxIter iter delta cost' $ finish alphas'
-             _         -> train' (iter+1) cost' sumAs' alphas'
+        -- Verify convergence.  Even with MaxIter we only stop
+        -- iterating if the delta was calculated.  Otherwise we
+        -- wouldn't be able to tell the caller why the delta was
+        -- still big when we reached the limit.
+        in case (calcCost, delta <= minDelta', iter >= maxIter') of
+             (True, True, _) -> Result Delta   iter delta cost' $ finish alphas'
+             (True, _, True) -> Result MaxIter iter delta cost' $ finish alphas'
+             _               -> train' (iter+1) cost' sumAs' alphas'
 
 -- | Cost function for deriving a Dirichlet density.  This
 --   function is minimized by 'deriveDD'.
