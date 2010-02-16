@@ -93,8 +93,21 @@ instance NFData a => NFData (Result a) where
 
 
 -- | A Dirichlet density.
-newtype DirichletDensity = DD (U.Vector Double)
-                           deriving (Eq, Show)
+newtype DirichletDensity = DD (U.Vector Double) deriving (Eq)
+
+instance Show DirichletDensity where
+    showsPrec prec (DD v) =
+      showParen (prec > 10) $
+      showString "listDD " .
+      showsPrec 11 (U.toList v)
+
+instance Read DirichletDensity where
+    readsPrec p ('(':xs) = let (ys,')':zs) = break (== ')') xs
+                           in map (\(x,s) -> (x,s++zs)) $
+                              readsPrec p ys
+    readsPrec p xs = let ("listDD ",list) = break (== '[') xs
+                     in map (\(x,s) -> (listDD x,s)) $
+                        readsPrec p list
 
 instance NFData DirichletDensity where
     rnf = rwhnf
@@ -104,6 +117,11 @@ instance NFData DirichletDensity where
 emptyDD :: Int -> Double -> DirichletDensity
 emptyDD = (DD .) . U.replicate
 {-# INLINE emptyDD #-}
+
+-- | @listDD xs@ constructs a Dirichlet density from a list of
+-- alpha values.
+listDD :: [Double] -> DirichletDensity
+listDD = DD . U.fromList
 
 infinity :: Double
 infinity = 1e100
