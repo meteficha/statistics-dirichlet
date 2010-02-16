@@ -105,7 +105,7 @@ instance Read DirichletDensity where
     readsPrec p ('(':xs) = let (ys,')':zs) = break (== ')') xs
                            in map (\(x,s) -> (x,s++zs)) $
                               readsPrec p ys
-    readsPrec p xs = let ("listDD ",list) = break (== '[') xs
+    readsPrec p xs = let [("listDD",list)] = lex xs
                      in map (\(x,s) -> (listDD x,s)) $
                         readsPrec p list
 
