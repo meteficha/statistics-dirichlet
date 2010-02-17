@@ -44,14 +44,20 @@ type Delta = Double
 data Predicate = Pred
     {maxIter    :: !Int    -- ^ Maximum number of iterations.
     ,minDelta   :: !Delta  -- ^ Minimum delta to continue iterating.
-                           --   This is invariant of @deltaSteps@, which
-                           --   means that if @deltaSteps@ is @2@ then
-                           --   minDelta will be considered twice bigger
-                           --   to account for the different @deltaSteps@.
+                           -- This is invariant of @deltaSteps@, which
+                           -- means that if @deltaSteps@ is @2@ then
+                           -- minDelta will be considered twice bigger
+                           -- to account for the different @deltaSteps@.
     ,deltaSteps :: !Int    -- ^ How many estimation steps should be done
-                           --   before recalculating the delta.  If
-                           --   @deltaSteps@ is @1@ then it will be
-                           --   recalculated on every step.
+                           -- before recalculating the delta.  If
+                           -- @deltaSteps@ is @1@ then it will be
+                           -- recalculated on every step.
+    ,jumpDelta  :: !Delta  -- ^ Used only when calculating mixtures.
+                           -- When the delta drops below this cutoff
+                           -- the computation changes from estimating
+                           -- the alphas to estimatating the weights
+                           -- and vice-versa.  Should be greater than
+                           -- @minDelta@.
     }
                  deriving (Eq, Read, Show)
 

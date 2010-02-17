@@ -75,7 +75,7 @@ toList (DD xs) = U.toList xs
 -- verified.
 derive :: DirichletDensity -> Predicate -> StepSize
          -> TrainingVectors -> Result DirichletDensity
-derive (DD initial) (Pred maxIter' minDelta_ deltaSteps')
+derive (DD initial) (Pred maxIter' minDelta_ deltaSteps' _)
              (Step step) trainingData
     | V.length trainingData == 0 = err "empty training data"
     | U.length initial < 1       = err "empty initial vector"
