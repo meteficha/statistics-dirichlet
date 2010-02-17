@@ -17,7 +17,8 @@ module Math.Statistics.Dirichlet.Mixture
     ,fromList
     ,toList
     -- * Functions used
-    ,prob_a_n_theta)
+    ,prob_a_n_theta
+    ,prob_a_n_theta_w)
     where
 
 import qualified Data.Vector as V
@@ -135,3 +136,25 @@ prob_a_n_theta ns (DM qs ds) =
                               total = U.sum fs
                           in U.map (/ total) fs
     in V.map factors ns
+
+
+-- | Customized version of @prob_a_n_theta@ used when the weights
+-- are being estimated.  Precomputes everything that doesn't
+-- depend on the weight.
+prob_a_n_theta_w :: TrainingVectors -> V.Vector DirichletDensity
+                 -> (U.Vector Double -> V.Vector (U.Vector Double))
+prob_a_n_theta_w ns ds =
+    let -- Precalculate logBeta of all components
+        !logBetaAlphas   = G.unstream $ G.stream $ V.map (logBeta . unDD) ds
+
+        -- Precalculate the factors for one of the training vectors.
+        precalc n i lb_a = let a = unDD (ds V.! i)
+                           in exp (logBeta (U.zipWith (+) n a) - lb_a)
+        !prefactors      = V.map (\n -> U.imap (precalc n) logBetaAlphas) ns
+
+    in \qs ->
+        let -- Calculate the final factors.
+            calc pfs = let fs = U.zipWith (*) pfs qs
+                           total = U.sum fs
+                       in U.map (/ total) fs
+        in V.map calc prefactors
