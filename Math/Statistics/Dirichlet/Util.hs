@@ -23,7 +23,6 @@ import Numeric.GSL.Special.Gamma (lngamma, lnbeta)
 logBeta :: U.Vector Double -> Double
 logBeta xs | U.length xs == 2 = lnbeta (U.head xs) (U.last xs)
            | otherwise        = U.sum (U.map lngamma xs) - lngamma (U.sum xs)
-{-# INLINE logBeta #-}
 
 -- | Infinity, currently defined as @1e100@.  Used mainly as the
 -- initial cost.
