@@ -10,12 +10,11 @@
 --------------------------------------------------------------------------
 
 module Math.Statistics.Dirichlet.Mixture
-    (DirichletDensity(..)
-    ,emptyDD
-    ,deriveDD
-    ,costDD
-
-    ,logBeta)
+    (DirichletMixture(..)
+    ,empty
+    ,Component
+    ,fromList
+    ,toList)
     where
 
 import qualified Data.Vector as V
@@ -26,132 +25,89 @@ import Control.Parallel.Strategies (NFData(..), rwhnf)
 import Numeric.GSL.Special.Gamma (lngamma, lnbeta)
 import Numeric.GSL.Special.Psi (psi)
 
+import qualified Math.Statistics.Dirichlet.Density as D
+import Math.Statistics.Dirichlet.Density (DirichletDensity)
 import Math.Statistics.Dirichlet.Options
+import Math.Statistics.Dirichlet.Util
 
 
 
--- | Logarithm of the beta function applied to a vector.
-logBeta :: U.Vector Double -> Double
-logBeta xs | U.length xs == 2 = lnbeta (U.head xs) (U.last xs)
-           | otherwise        = U.sum (U.map lngamma xs) - lngamma (U.sum xs)
-{-# INLINE logBeta #-}
+-- | A Dirichlet mixture.
+data DirichletMixture =
+    DM {dmWeights   :: {-# UNPACK #-} !(U.Vector Double)
+       ,dmDensities :: {-# UNPACK #-} !(V.Vector DirichletDensity)}
+        deriving (Eq)
 
--- | A Dirichlet density.
-newtype DirichletDensity = DD (U.Vector Double) deriving (Eq)
-
-instance Show DirichletDensity where
-    showsPrec prec (DD v) =
+instance Show DirichletMixture where
+    showsPrec prec dm =
       showParen (prec > 10) $
-      showString "listDD " .
-      showsPrec 11 (U.toList v)
+      showString "fromList " .
+      showsPrec 11 (toList dm)
 
-instance Read DirichletDensity where
+instance Read DirichletMixture where
     readsPrec p ('(':xs) = let (ys,')':zs) = break (== ')') xs
                            in map (\(x,s) -> (x,s++zs)) $
                               readsPrec p ys
-    readsPrec p xs = let [("listDD",list)] = lex xs
-                     in map (\(x,s) -> (listDD x,s)) $
+    readsPrec p xs = let [("fromList",list)] = lex xs
+                     in map (\(x,s) -> (fromList x,s)) $
                         readsPrec p list
 
-instance NFData DirichletDensity where
+instance NFData DirichletMixture where
     rnf = rwhnf
 
--- | @emptyDD n x@ is an \"empty\" Dirichlet density with size
---   @n@ and all alphas set to @x@.
-emptyDD :: Int -> Double -> DirichletDensity
-emptyDD = (DD .) . U.replicate
-{-# INLINE emptyDD #-}
+-- | @empty q n x@ is an \"empty\" Dirichlet mixture with @q@
+-- components.  Each component has size @n@, weight @1/q@ and all
+-- alphas set to @x@.
+empty :: Int -> Int -> Double -> DirichletMixture
+empty q n x = let dd = D.empty n x
+                  qs = recip $ fromIntegral q
+              in DM {dmWeights   = U.replicate q qs
+                    ,dmDensities = V.replicate q dd}
+{-# INLINE empty #-}
 
--- | @listDD xs@ constructs a Dirichlet density from a list of
--- alpha values.
-listDD :: [Double] -> DirichletDensity
-listDD = DD . U.fromList
 
-infinity :: Double
-infinity = 1e100
+-- | A list representation of a component of a Dirichlet mixture.
+-- Used by 'fromList' and 'toList' only.
+type Component = (Double, [Double])
 
--- | Derive a Dirichlet density using a maximum likelihood method
---   as described by Karplus et al.  All training vectors should
---   have the same length, however this is not verified.
-deriveDD :: DirichletDensity -> Predicate -> StepSize
-         -> TrainingVectors -> Result DirichletDensity
-deriveDD (DD initial) (Pred maxIter' minDelta_ deltaSteps')
-             (Step step) trainingData
-    | V.length trainingData == 0 = err "empty training data"
-    | U.length initial < 1       = err "empty initial vector"
-    | maxIter' < 1               = err "non-positive maxIter"
-    | minDelta_ < 0              = err "negative minDelta"
-    | deltaSteps' < 1            = err "non-positive deltaSteps"
-    | step <= 0                  = err "non-positive step"
-    | step >= 1                  = err "step greater than one"
-    | otherwise                  = train
-    where
-      err = error . ("Dirichlet.deriveDD: " ++)
+-- | @fromList xs@ constructs a Dirichlet mixture from a
+-- non-empty list of components.  Each component has a weight and
+-- a list of alpha values.  The weights sum to 1, all lists must
+-- have the same number of values and every number must be
+-- non-negative.  All of these preconditions are verified for
+-- clear mistakes.
+fromList :: [Component] -> DirichletMixture
+fromList components =
+  let -- Vectors
+      qs = U.fromList $ map               fst  components
+      ds = V.fromList $ map (D.fromList . snd) components
 
-      -- Compensate the different deltaSteps.
-      !minDelta'    = minDelta_ * fromIntegral deltaSteps'
+      -- Properties of the mixture
+      q  = length components
+      n  = length (snd $ head components)
 
-      -- Number of training sequences.
-      !trainingSize = fromIntegral $ V.length trainingData
+      -- Checks
+      c0 = q >= 1
+      c1 = abs (U.sum qs - 1) < 1e-2 -- we're quite permissive here
+      c2 = U.all (>= 0) qs
+      c3 = all ((== n) . length . snd) components
+      c4 = all (all (>= 0)      . snd) components
+      e  = error . ("Dirichlet.Mixture.fromList: " ++)
+  in case (c0, c1, c2, c3, c4) of
+       (True,_,_,_,_) -> e "there must be at least one component"
+       (_,True,_,_,_) -> e "the sum of the weights must be one"
+       (_,_,True,_,_) -> e "all weights must be greater than or equal to zero"
+       (_,_,_,True,_) -> e "every component must have the same size"
+       (_,_,_,_,True) -> e "all alphas must be greater than or equal to zero"
+       _              -> DM qs ds
+{-# INLINE fromList #-}
 
-      -- Sums of each training sequence.
-      trainingSums :: U.Vector Double
-      !trainingSums = G.unstream $ G.stream $ V.map U.sum trainingData
-
-      -- Functions that work on the alphas only (and not their logs).
-      calcSumAs = U.sum . snd . U.unzip
-      finish    = DD    . snd . U.unzip
-
-      -- Start training in the zero-th iteration and with
-      -- infinite inital cost.
-      train = train' 0 infinity (U.sum initial) $
-              U.map (\x -> (log x, x)) initial
-
-      train' !iter !cost !sumAs !alphas =
-        -- Reestimate alpha's.
-        let !alphas'  = U.imap calculateAlphas alphas
-            !psiSumAs = psi sumAs
-            !psiSums  = U.sum $ U.map (\sumT -> psi $ sumT + sumAs) trainingSums
-            calculateAlphas !i (!w, !a) =
-              let !s1 = trainingSize * (psiSumAs - psi a)
-                  !s2 = V.sum $ V.map (\t -> psi $ t U.! i + a) trainingData
-                  !w' = w + step * a * (s1 + s2 - psiSums)
-                  !a' = exp w'
-              in (w', a')
-
-        -- Recalculate constants.
-            !sumAs'   = calcSumAs alphas'
-            !calcCost = iter `mod` deltaSteps' == 0
-            !cost'    = if calcCost then costDD' (snd $ U.unzip alphas') sumAs'
-                                                 trainingData trainingSums
-                                    else cost -- use old cost
-            !delta    = abs (cost' - cost)
-
-        -- Verify convergence.  Even with MaxIter we only stop
-        -- iterating if the delta was calculated.  Otherwise we
-        -- wouldn't be able to tell the caller why the delta was
-        -- still big when we reached the limit.
-        in case (calcCost, delta <= minDelta', iter >= maxIter') of
-             (True, True, _) -> Result Delta   iter delta cost' $ finish alphas'
-             (True, _, True) -> Result MaxIter iter delta cost' $ finish alphas'
-             _               -> train' (iter+1) cost' sumAs' alphas'
-
--- | Cost function for deriving a Dirichlet density.  This
---   function is minimized by 'deriveDD'.
-costDD :: DirichletDensity -> TrainingVectors -> Double
-costDD (DD arr) tv = costDD' arr (U.sum arr) tv $
-                     G.unstream $ G.stream $ V.map U.sum tv
-
--- | 'costDD' needs to calculate the sum of all training vectors.
---   This functios avoids recalculting this quantity in
---   'deriveDD' multiple times.  This is the used by both
---   'costDD' and 'deriveDD'.
-costDD' :: U.Vector Double -> Double -> TrainingVectors -> U.Vector Double -> Double
-costDD' !alphas !sumAs !trainingData !trainingSums =
-    let !lngammaSumAs = lngamma sumAs
-        f t = U.sum $ U.zipWith w t alphas
-            where w t_i a_i = lngamma (t_i + a_i) - lngamma (t_i + 1) - lngamma a_i
-        g sumT = lngamma (sumT+1) + lngammaSumAs - lngamma (sumT + sumAs)
-    in negate $ (V.sum $ V.map f trainingData)
-              + (U.sum $ U.map g trainingSums)
-{-# INLINE costDD' #-}
+-- | @toList dm@ is the inverse of @fromList@, constructs a list
+-- of components from a Dirichlet mixture.  There are no error
+-- conditions and @toList . fromList == id@.
+toList :: DirichletMixture -> [Component]
+toList (DM qs ds) =
+    let qs' = U.toList qs
+        ds' = V.toList $ V.map D.toList ds
+    in zip qs' ds'
+{-# INLINE toList #-}
