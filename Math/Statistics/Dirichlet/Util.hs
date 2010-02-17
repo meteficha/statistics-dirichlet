@@ -16,7 +16,6 @@ module Math.Statistics.Dirichlet.Util
 
 import qualified Data.Vector.Unboxed as U
 import Numeric.GSL.Special.Gamma (lngamma, lnbeta)
-import Numeric.GSL.Special.Psi (psi)
 
 
 
