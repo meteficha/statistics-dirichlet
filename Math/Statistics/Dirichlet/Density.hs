@@ -150,7 +150,8 @@ costWorker !alphas !sumAs !trainingData !trainingSums =
     let !lngammaSumAs = lngamma sumAs
         f t = U.sum $ U.zipWith w t alphas
             where w t_i a_i = lngamma (t_i + a_i) - lngamma (t_i + 1) - lngamma a_i
-        g sumT = lngamma (sumT+1) + lngammaSumAs - lngamma (sumT + sumAs)
+        g sumT = lngamma (sumT+1) - lngamma (sumT + sumAs)
     in negate $ (V.sum $ V.map f trainingData)
               + (U.sum $ U.map g trainingSums)
+              + lngammaSumAs * fromIntegral (U.length trainingSums)
 {-# INLINE costWorker #-}
