@@ -64,12 +64,13 @@ instance NFData DirichletMixture where
     rnf = rwhnf
 
 -- | @empty q n x@ is an \"empty\" Dirichlet mixture with @q@
--- components.  Each component has size @n@, weight @1/q@ and all
--- alphas set to @x@.
+-- components.  Each component has size @n@, weight inversely
+-- proportional to its index and all alphas set to @x@.
 empty :: Int -> Int -> Double -> DirichletMixture
-empty q n x = let dd = D.empty n x
-                  qs = recip $ fromIntegral q
-              in DM {dmWeights   = U.replicate q qs
+empty q n x = let dd   = D.empty n x
+                  f i  = fromIntegral (q-i) / sum_
+                  sum_ = fromIntegral (q*(q+1)`div`2)
+              in DM {dmWeights   = U.generate q f
                     ,dmDensities = V.replicate q dd}
 {-# INLINE empty #-}
 
