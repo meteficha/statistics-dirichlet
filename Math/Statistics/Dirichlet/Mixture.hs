@@ -38,7 +38,7 @@ import Math.Statistics.Dirichlet.Util
 -- | A Dirichlet mixture.
 data DirichletMixture =
     DM {dmWeights   :: {-# UNPACK #-} !(U.Vector Double)
-       ,dmDensities :: {-# UNPACK #-} !(V.Vector DirichletDensity)}
+       ,dmDensities :: {-# UNPACK #-} !(V.Vector (U.Vector Double))}
         deriving (Eq)
 
 instance Show DirichletMixture where
@@ -62,7 +62,7 @@ instance NFData DirichletMixture where
 -- components.  Each component has size @n@, weight @1/q@ and all
 -- alphas set to @x@.
 empty :: Int -> Int -> Double -> DirichletMixture
-empty q n x = let dd = D.empty n x
+empty q n x = let dd = case D.empty n x of {DD d -> d}
                   qs = recip $ fromIntegral q
               in DM {dmWeights   = U.replicate q qs
                     ,dmDensities = V.replicate q dd}
@@ -83,7 +83,7 @@ fromList :: [Component] -> DirichletMixture
 fromList components =
   let -- Vectors
       qs = U.fromList $ map               fst  components
-      ds = V.fromList $ map (D.fromList . snd) components
+      ds = V.fromList $ map (U.fromList . snd) components
 
       -- Properties of the mixture
       q  = length components
@@ -103,7 +103,6 @@ fromList components =
        (_,_,_,True,_) -> e "every component must have the same size"
        (_,_,_,_,True) -> e "all alphas must be greater than or equal to zero"
        _              -> DM qs ds
-{-# INLINE fromList #-}
 
 -- | @toList dm@ is the inverse of @fromList@, constructs a list
 -- of components from a Dirichlet mixture.  There are no error
@@ -111,9 +110,8 @@ fromList components =
 toList :: DirichletMixture -> [Component]
 toList (DM qs ds) =
     let qs' = U.toList qs
-        ds' = V.toList $ V.map D.toList ds
+        ds' = V.toList $ V.map U.toList ds
     in zip qs' ds'
-{-# INLINE toList #-}
 
 
 
