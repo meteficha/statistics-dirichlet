@@ -38,8 +38,9 @@ import Math.Statistics.Dirichlet.Util
 -- | A Dirichlet mixture.
 data DirichletMixture =
     DM {dmWeights   :: {-# UNPACK #-} !(U.Vector Double)
-       ,dmDensities :: {-# UNPACK #-} !(V.Vector (U.Vector Double))}
+       ,dmDensities :: {-# UNPACK #-} !(V.Vector DirichletDensity)}
         deriving (Eq)
+
 
 instance Show DirichletMixture where
     showsPrec prec dm =
@@ -62,7 +63,7 @@ instance NFData DirichletMixture where
 -- components.  Each component has size @n@, weight @1/q@ and all
 -- alphas set to @x@.
 empty :: Int -> Int -> Double -> DirichletMixture
-empty q n x = let dd = case D.empty n x of {DD d -> d}
+empty q n x = let dd = D.empty n x
                   qs = recip $ fromIntegral q
               in DM {dmWeights   = U.replicate q qs
                     ,dmDensities = V.replicate q dd}
@@ -83,7 +84,7 @@ fromList :: [Component] -> DirichletMixture
 fromList components =
   let -- Vectors
       qs = U.fromList $ map               fst  components
-      ds = V.fromList $ map (U.fromList . snd) components
+      ds = V.fromList $ map (D.fromList . snd) components
 
       -- Properties of the mixture
       q  = length components
@@ -110,7 +111,7 @@ fromList components =
 toList :: DirichletMixture -> [Component]
 toList (DM qs ds) =
     let qs' = U.toList qs
-        ds' = V.toList $ V.map U.toList ds
+        ds' = V.toList $ V.map D.toList ds
     in zip qs' ds'
 
 
@@ -125,10 +126,10 @@ toList (DM qs ds) =
 prob_a_n_theta :: TrainingVectors -> DirichletMixture -> V.Vector (U.Vector Double)
 prob_a_n_theta ns (DM qs ds) =
     let -- Precalculate logBeta of all components
-        !logBetaAlphas  = G.unstream $ G.stream $ V.map logBeta ds
+        !logBetaAlphas  = G.unstream $ G.stream $ V.map (logBeta . unDD) ds
 
         -- Calculates the factors for one of the training vectors.
-        calc n i q lb_a = let a = ds V.! i
+        calc n i q lb_a = let a = unDD (ds V.! i)
                           in q * exp (logBeta (U.zipWith (+) n a) - lb_a)
         factors n       = let fs = U.izipWith (calc n) qs logBetaAlphas
                               total = U.sum fs
