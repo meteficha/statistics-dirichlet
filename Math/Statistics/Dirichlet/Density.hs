@@ -22,10 +22,11 @@ import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
 
 import Control.Parallel.Strategies (NFData(..), rwhnf)
-import Numeric.GSL.Special.Gamma (lngamma, lnbeta)
+import Numeric.GSL.Special.Gamma (lngamma)
 import Numeric.GSL.Special.Psi (psi)
 
 import Math.Statistics.Dirichlet.Options
+import Math.Statistics.Dirichlet.Util
 
 
 
@@ -59,9 +60,7 @@ empty = (DD .) . U.replicate
 -- alpha values.
 fromList :: [Double] -> DirichletDensity
 fromList = DD . U.fromList
-
-infinity :: Double
-infinity = 1e100
+{-# INLINE fromList #-}
 
 -- | Derive a Dirichlet density using a maximum likelihood method
 -- as described by Karplus et al (equation 26).  All training
