@@ -121,13 +121,18 @@ toList (DM qs ds) =
 -- | /Prob(a_j | n, theta)/ Defined in equation (16), "the
 -- posterior probability of the /j/-th component of the mixture
 -- given the vector of counts /n/".  We return the probabilities
--- for all /j/ in a vector.
+-- for all /j/ in each vector.
 --
 -- Calculated as per equation (39) using 'logBeta'.
-prob_a_n_theta :: TrainingVector -> DirichletMixture -> U.Vector Double
-prob_a_n_theta n (DM qs ds) =
-  let factors       = U.imap (\i q -> calc q $ ds V.! i) qs
-      calc q (DD a) = q * exp (logBeta (U.zipWith (+) n a) - logBeta a)
-      total         = U.sum factors
-  in U.map (/ total) factors
+prob_a_n_theta :: TrainingVectors -> DirichletMixture -> V.Vector (U.Vector Double)
+prob_a_n_theta ns (DM qs ds) =
+    let -- Precalculate logBeta of all components
+        !logBetaAlphas  = G.unstream $ G.stream $ V.map logBeta ds
 
+        -- Calculates the factors for one of the training vectors.
+        calc n i q lb_a = let a = ds V.! i
+                          in q * exp (logBeta (U.zipWith (+) n a) - lb_a)
+        factors n       = let fs = U.izipWith (calc n) qs logBetaAlphas
+                              total = U.sum fs
+                          in U.map (/ total) fs
+    in V.map factors ns
