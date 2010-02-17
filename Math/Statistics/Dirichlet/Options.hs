@@ -20,8 +20,8 @@ module Math.Statistics.Dirichlet.Options
     where
 
 import qualified Data.Vector as V
-import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
+import Control.Parallel.Strategies (NFData(..))
 
 -- | A vector used for deriving the parameters of a Dirichlet
 --   density or mixture.
