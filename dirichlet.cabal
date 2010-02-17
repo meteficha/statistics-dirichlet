@@ -21,4 +21,5 @@ Library
   Ghc-Options: -Wall -O2
   Extensions: BangPatterns
   Exposed-Modules:
-    Math.Statistics.Dirichlet.Density
+    Math.Statistics.Dirichlet.Density,
+    Math.Statistics.Dirichlet.Mixture
