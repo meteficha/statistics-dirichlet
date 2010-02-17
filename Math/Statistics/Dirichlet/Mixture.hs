@@ -128,7 +128,7 @@ prob_a_n_theta ns (DM qs ds) =
     let -- Precalculate logBeta of all components
         !logBetaAlphas  = G.unstream $ G.stream $ V.map (logBeta . unDD) ds
 
-        -- Calculates the factors for one of the training vectors.
+        -- Calculate the factors for one of the training vectors.
         calc n i q lb_a = let a = unDD (ds V.! i)
                           in q * exp (logBeta (U.zipWith (+) n a) - lb_a)
         factors n       = let fs = U.izipWith (calc n) qs logBetaAlphas
