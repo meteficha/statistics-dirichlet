@@ -138,8 +138,8 @@ derive (DD initial) (Pred maxIter' minDelta_ deltaSteps')
 
 -- | Cost function for deriving a Dirichlet density (equation
 -- 18).  This function is minimized by 'derive'.
-cost :: DirichletDensity -> TrainingVectors -> Double
-cost (DD arr) tv = costWorker arr (U.sum arr) tv $
+cost :: TrainingVectors -> DirichletDensity -> Double
+cost tv (DD arr) = costWorker arr (U.sum arr) tv $
                      G.unstream $ G.stream $ V.map U.sum tv
 
 -- | 'cost' needs to calculate the sum of all training vectors.
