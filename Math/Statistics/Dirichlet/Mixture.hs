@@ -85,7 +85,7 @@ fromList :: [Component] -> DirichletMixture
 fromList components =
   let -- Vectors
       qs = U.fromList $ map               fst  components
-      ds = V.fromList $ map (D.fromList . snd) components
+      as = V.fromList $ map (D.fromList . snd) components
 
       -- Properties of the mixture
       q  = length components
@@ -104,16 +104,16 @@ fromList components =
        (_,_,True,_,_) -> e "all weights must be greater than or equal to zero"
        (_,_,_,True,_) -> e "every component must have the same size"
        (_,_,_,_,True) -> e "all alphas must be greater than or equal to zero"
-       _              -> DM qs ds
+       _              -> DM qs as
 
 -- | @toList dm@ is the inverse of @fromList@, constructs a list
 -- of components from a Dirichlet mixture.  There are no error
 -- conditions and @toList . fromList == id@.
 toList :: DirichletMixture -> [Component]
-toList (DM qs ds) =
+toList (DM qs as) =
     let qs' = U.toList qs
-        ds' = V.toList $ V.map D.toList ds
-    in zip qs' ds'
+        as' = V.toList $ V.map D.toList as
+    in zip qs' as'
 
 
 
@@ -125,12 +125,12 @@ toList (DM qs ds) =
 --
 -- Calculated as per equation (39) using 'logBeta'.
 prob_a_n_theta :: TrainingVectors -> DirichletMixture -> V.Vector (U.Vector Double)
-prob_a_n_theta ns (DM qs ds) =
+prob_a_n_theta ns (DM qs as) =
     let -- Precalculate logBeta of all components
-        !logBetaAlphas  = G.unstream $ G.stream $ V.map (logBeta . unDD) ds
+        !logBetaAlphas  = G.unstream $ G.stream $ V.map (logBeta . unDD) as
 
         -- Calculate the factors for one of the training vectors.
-        calc n i q lb_a = let a = unDD (ds V.! i)
+        calc n i q lb_a = let a = unDD (as V.! i)
                           in q * exp (logBeta (U.zipWith (+) n a) - lb_a)
         factors n       = let fs = U.izipWith (calc n) qs logBetaAlphas
                               total = U.sum fs
@@ -143,12 +143,12 @@ prob_a_n_theta ns (DM qs ds) =
 -- depend on the weight.
 prob_a_n_theta_w :: TrainingVectors -> V.Vector DirichletDensity
                  -> (U.Vector Double -> V.Vector (U.Vector Double))
-prob_a_n_theta_w ns ds =
+prob_a_n_theta_w ns as =
     let -- Precalculate logBeta of all components
-        !logBetaAlphas   = G.unstream $ G.stream $ V.map (logBeta . unDD) ds
+        !logBetaAlphas   = G.unstream $ G.stream $ V.map (logBeta . unDD) as
 
         -- Precalculate the factors for one of the training vectors.
-        precalc n i lb_a = let a = unDD (ds V.! i)
+        precalc n i lb_a = let a = unDD (as V.! i)
                            in exp (logBeta (U.zipWith (+) n a) - lb_a)
         !prefactors      = V.map (\n -> U.imap (precalc n) logBetaAlphas) ns
 
