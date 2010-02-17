@@ -16,9 +16,12 @@ module Math.Statistics.Dirichlet.Mixture
     ,Component
     ,fromList
     ,toList
-    -- * Functions used
+    -- * Main functions
+    ,cost
+    -- * Auxiliary functions
     ,prob_a_n_theta
-    ,prob_a_n_theta_w)
+    ,prob_a_n_theta_w
+    ,cost')
     where
 
 import qualified Data.Vector as V
@@ -158,3 +161,33 @@ prob_a_n_theta_w ns as =
                            total = U.sum fs
                        in U.map (/ total) fs
         in V.map calc prefactors
+
+
+-- | Cost function for deriving a Dirichlet mixture (equation
+-- 18).  This function is minimized by 'derive'.  Calculated
+-- using (17) and (54).
+cost :: TrainingVectors -> DirichletMixture -> Double
+cost ns (DM qs as) =
+    let ns_sums = G.unstream $ G.stream $ V.map U.sum ns
+        as_sums = G.unstream $ G.stream $ V.map (U.sum . unDD) as
+        log_qs  = U.map log qs
+    in cost' ns as ns_sums as_sums log_qs
+
+
+-- | Worker of 'cost' function that avoids repeating some
+-- computations that may be done elsewhere.
+cost' :: TrainingVectors -> V.Vector DirichletDensity -> U.Vector Double
+      -> U.Vector Double -> U.Vector Double -> Double
+cost' !ns !as !ns_sums !as_sums !log_qs =
+    let -- Logarithm of equation (54).
+        log_prob_n_a n n_sum a a_sum = s + U.sum (U.zipWith f n a)
+            where
+              !s = lngamma (n_sum+1) + lngamma a_sum - lngamma (n_sum+a_sum)
+              f n_i a_i = lngamma (n_i + a_i) - lngamma (n_i + 1) - lngamma a_i
+
+        -- Equation (17).
+        prob_n_theta i n =
+            let !n_sum = ns_sums U.! i
+                f j = log_prob_n_a n n_sum (unDD $ as V.! j)
+            in U.sum $ U.izipWith (\j lq a_sum -> exp $ lq + f j a_sum) log_qs as_sums
+    in negate $ V.sum $ V.imap ((log .) . prob_n_theta) ns
