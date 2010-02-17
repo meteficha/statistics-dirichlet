@@ -13,6 +13,7 @@ module Math.Statistics.Dirichlet.Density
     (DirichletDensity(..)
     ,empty
     ,fromList
+    ,toList
     ,derive
     ,cost)
     where
@@ -61,6 +62,12 @@ empty = (DD .) . U.replicate
 fromList :: [Double] -> DirichletDensity
 fromList = DD . U.fromList
 {-# INLINE fromList #-}
+
+-- | @toList d@ deconstructs a Dirichlet density to a list of
+-- alpha values.
+toList :: DirichletDensity -> [Double]
+toList (DD xs) = U.toList xs
+{-# INLINE toList #-}
 
 -- | Derive a Dirichlet density using a maximum likelihood method
 -- as described by Karplus et al (equation 26).  All training
