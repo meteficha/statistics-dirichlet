@@ -10,11 +10,14 @@
 --------------------------------------------------------------------------
 
 module Math.Statistics.Dirichlet.Mixture
-    (DirichletMixture(..)
+    (-- * Data types
+     DirichletMixture(..)
     ,empty
     ,Component
     ,fromList
-    ,toList)
+    ,toList
+    -- * Functions used
+    ,prob_a_n_theta)
     where
 
 import qualified Data.Vector as V
@@ -26,7 +29,7 @@ import Numeric.GSL.Special.Gamma (lngamma, lnbeta)
 import Numeric.GSL.Special.Psi (psi)
 
 import qualified Math.Statistics.Dirichlet.Density as D
-import Math.Statistics.Dirichlet.Density (DirichletDensity)
+import Math.Statistics.Dirichlet.Density (DirichletDensity(..))
 import Math.Statistics.Dirichlet.Options
 import Math.Statistics.Dirichlet.Util
 
@@ -111,3 +114,20 @@ toList (DM qs ds) =
         ds' = V.toList $ V.map D.toList ds
     in zip qs' ds'
 {-# INLINE toList #-}
+
+
+
+
+-- | /Prob(a_j | n, theta)/ Defined in equation (16), "the
+-- posterior probability of the /j/-th component of the mixture
+-- given the vector of counts /n/".  We return the probabilities
+-- for all /j/ in a vector.
+--
+-- Calculated as per equation (39) using 'logBeta'.
+prob_a_n_theta :: TrainingVector -> DirichletMixture -> U.Vector Double
+prob_a_n_theta n (DM qs ds) =
+  let factors       = U.imap (\i q -> calc q $ ds V.! i) qs
+      calc q (DD a) = q * exp (logBeta (U.zipWith (+) n a) - logBeta a)
+      total         = U.sum factors
+  in U.map (/ total) factors
+
