@@ -99,12 +99,12 @@ fromList components =
       c4 = all (all (>= 0)      . snd) components
       e  = error . ("Dirichlet.Mixture.fromList: " ++)
   in case (c0, c1, c2, c3, c4) of
-       (True,_,_,_,_) -> e "there must be at least one component"
-       (_,True,_,_,_) -> e "the sum of the weights must be one"
-       (_,_,True,_,_) -> e "all weights must be greater than or equal to zero"
-       (_,_,_,True,_) -> e "every component must have the same size"
-       (_,_,_,_,True) -> e "all alphas must be greater than or equal to zero"
-       _              -> DM qs as
+       (False,_,_,_,_) -> e "there must be at least one component"
+       (_,False,_,_,_) -> e "the sum of the weights must be one"
+       (_,_,False,_,_) -> e "all weights must be greater than or equal to zero"
+       (_,_,_,False,_) -> e "every component must have the same size"
+       (_,_,_,_,False) -> e "all alphas must be greater than or equal to zero"
+       _               -> DM qs as
 
 -- | @toList dm@ is the inverse of @fromList@, constructs a list
 -- of components from a Dirichlet mixture.  There are no error
