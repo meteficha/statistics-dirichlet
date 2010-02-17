@@ -26,7 +26,7 @@ import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
 
 import Control.Parallel.Strategies (NFData(..), rwhnf)
-import Numeric.GSL.Special.Gamma (lngamma, lnbeta)
+import Numeric.GSL.Special.Gamma (lngamma)
 import Numeric.GSL.Special.Psi (psi)
 
 import qualified Math.Statistics.Dirichlet.Density as D
