@@ -22,4 +22,5 @@ Library
   Extensions: BangPatterns
   Exposed-Modules:
     Math.Statistics.Dirichlet.Density,
-    Math.Statistics.Dirichlet.Mixture
+    Math.Statistics.Dirichlet.Mixture,
+    Math.Statistics.Dirichlet.Options
