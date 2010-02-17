@@ -107,7 +107,7 @@ derive (DD initial) (Pred maxIter' minDelta_ deltaSteps')
       train = train' 0 infinity (U.sum initial) $
               U.map (\x -> (log x, x)) initial
 
-      train' !iter !cost !sumAs !alphas =
+      train' !iter !oldCost !sumAs !alphas =
         -- Reestimate alpha's.
         let !alphas'  = U.imap calculateAlphas alphas
             !psiSumAs = psi sumAs
@@ -122,10 +122,10 @@ derive (DD initial) (Pred maxIter' minDelta_ deltaSteps')
         -- Recalculate constants.
             !sumAs'   = calcSumAs alphas'
             !calcCost = iter `mod` deltaSteps' == 0
-            !cost'    = if calcCost then cost' (snd $ U.unzip alphas') sumAs'
-                                                 trainingData trainingSums
-                                    else cost -- use old cost
-            !delta    = abs (cost' - cost)
+            !cost'    = if calcCost then newCost else oldCost
+             where newCost = costWorker (snd $ U.unzip alphas') sumAs'
+                                        trainingData trainingSums
+            !delta    = abs (cost' - oldCost)
 
         -- Verify convergence.  Even with MaxIter we only stop
         -- iterating if the delta was calculated.  Otherwise we
@@ -139,18 +139,18 @@ derive (DD initial) (Pred maxIter' minDelta_ deltaSteps')
 -- | Cost function for deriving a Dirichlet density (equation
 -- 18).  This function is minimized by 'derive'.
 cost :: DirichletDensity -> TrainingVectors -> Double
-cost (DD arr) tv = cost' arr (U.sum arr) tv $
+cost (DD arr) tv = costWorker arr (U.sum arr) tv $
                      G.unstream $ G.stream $ V.map U.sum tv
 
 -- | 'cost' needs to calculate the sum of all training vectors.
 -- This functios avoids recalculting this quantity in 'derive'
 -- multiple times.  This is the used by both 'cost' and 'derive'.
-cost' :: U.Vector Double -> Double -> TrainingVectors -> U.Vector Double -> Double
-cost' !alphas !sumAs !trainingData !trainingSums =
+costWorker :: U.Vector Double -> Double -> TrainingVectors -> U.Vector Double -> Double
+costWorker !alphas !sumAs !trainingData !trainingSums =
     let !lngammaSumAs = lngamma sumAs
         f t = U.sum $ U.zipWith w t alphas
             where w t_i a_i = lngamma (t_i + a_i) - lngamma (t_i + 1) - lngamma a_i
         g sumT = lngamma (sumT+1) + lngammaSumAs - lngamma (sumT + sumAs)
     in negate $ (V.sum $ V.map f trainingData)
               + (U.sum $ U.map g trainingSums)
-{-# INLINE cost' #-}
+{-# INLINE costWorker #-}
