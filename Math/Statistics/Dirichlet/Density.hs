@@ -11,9 +11,10 @@
 
 module Math.Statistics.Dirichlet.Density
     (DirichletDensity(..)
-    ,emptyDD
-    ,deriveDD
-    ,costDD)
+    ,empty
+    ,fromList
+    ,derive
+    ,cost)
     where
 
 import qualified Data.Vector as V
@@ -34,40 +35,41 @@ newtype DirichletDensity = DD (U.Vector Double) deriving (Eq)
 instance Show DirichletDensity where
     showsPrec prec (DD v) =
       showParen (prec > 10) $
-      showString "listDD " .
+      showString "fromList " .
       showsPrec 11 (U.toList v)
 
 instance Read DirichletDensity where
     readsPrec p ('(':xs) = let (ys,')':zs) = break (== ')') xs
                            in map (\(x,s) -> (x,s++zs)) $
                               readsPrec p ys
-    readsPrec p xs = let [("listDD",list)] = lex xs
-                     in map (\(x,s) -> (listDD x,s)) $
+    readsPrec p xs = let [("fromList",list)] = lex xs
+                     in map (\(x,s) -> (fromList x,s)) $
                         readsPrec p list
 
 instance NFData DirichletDensity where
     rnf = rwhnf
 
--- | @emptyDD n x@ is an \"empty\" Dirichlet density with size
---   @n@ and all alphas set to @x@.
-emptyDD :: Int -> Double -> DirichletDensity
-emptyDD = (DD .) . U.replicate
-{-# INLINE emptyDD #-}
+-- | @empty n x@ is an \"empty\" Dirichlet density with size
+-- @n@ and all alphas set to @x@.
+empty :: Int -> Double -> DirichletDensity
+empty = (DD .) . U.replicate
+{-# INLINE empty #-}
 
--- | @listDD xs@ constructs a Dirichlet density from a list of
+-- | @fromList xs@ constructs a Dirichlet density from a list of
 -- alpha values.
-listDD :: [Double] -> DirichletDensity
-listDD = DD . U.fromList
+fromList :: [Double] -> DirichletDensity
+fromList = DD . U.fromList
 
 infinity :: Double
 infinity = 1e100
 
 -- | Derive a Dirichlet density using a maximum likelihood method
---   as described by Karplus et al.  All training vectors should
---   have the same length, however this is not verified.
-deriveDD :: DirichletDensity -> Predicate -> StepSize
+-- as described by Karplus et al (equation 26).  All training
+-- vectors should have the same length, however this is not
+-- verified.
+derive :: DirichletDensity -> Predicate -> StepSize
          -> TrainingVectors -> Result DirichletDensity
-deriveDD (DD initial) (Pred maxIter' minDelta_ deltaSteps')
+derive (DD initial) (Pred maxIter' minDelta_ deltaSteps')
              (Step step) trainingData
     | V.length trainingData == 0 = err "empty training data"
     | U.length initial < 1       = err "empty initial vector"
@@ -78,7 +80,7 @@ deriveDD (DD initial) (Pred maxIter' minDelta_ deltaSteps')
     | step >= 1                  = err "step greater than one"
     | otherwise                  = train
     where
-      err = error . ("Dirichlet.deriveDD: " ++)
+      err = error . ("Dirichlet.derive: " ++)
 
       -- Compensate the different deltaSteps.
       !minDelta'    = minDelta_ * fromIntegral deltaSteps'
@@ -114,7 +116,7 @@ deriveDD (DD initial) (Pred maxIter' minDelta_ deltaSteps')
         -- Recalculate constants.
             !sumAs'   = calcSumAs alphas'
             !calcCost = iter `mod` deltaSteps' == 0
-            !cost'    = if calcCost then costDD' (snd $ U.unzip alphas') sumAs'
+            !cost'    = if calcCost then cost' (snd $ U.unzip alphas') sumAs'
                                                  trainingData trainingSums
                                     else cost -- use old cost
             !delta    = abs (cost' - cost)
@@ -128,22 +130,21 @@ deriveDD (DD initial) (Pred maxIter' minDelta_ deltaSteps')
              (True, _, True) -> Result MaxIter iter delta cost' $ finish alphas'
              _               -> train' (iter+1) cost' sumAs' alphas'
 
--- | Cost function for deriving a Dirichlet density.  This
---   function is minimized by 'deriveDD'.
-costDD :: DirichletDensity -> TrainingVectors -> Double
-costDD (DD arr) tv = costDD' arr (U.sum arr) tv $
+-- | Cost function for deriving a Dirichlet density (equation
+-- 18).  This function is minimized by 'derive'.
+cost :: DirichletDensity -> TrainingVectors -> Double
+cost (DD arr) tv = cost' arr (U.sum arr) tv $
                      G.unstream $ G.stream $ V.map U.sum tv
 
--- | 'costDD' needs to calculate the sum of all training vectors.
---   This functios avoids recalculting this quantity in
---   'deriveDD' multiple times.  This is the used by both
---   'costDD' and 'deriveDD'.
-costDD' :: U.Vector Double -> Double -> TrainingVectors -> U.Vector Double -> Double
-costDD' !alphas !sumAs !trainingData !trainingSums =
+-- | 'cost' needs to calculate the sum of all training vectors.
+-- This functios avoids recalculting this quantity in 'derive'
+-- multiple times.  This is the used by both 'cost' and 'derive'.
+cost' :: U.Vector Double -> Double -> TrainingVectors -> U.Vector Double -> Double
+cost' !alphas !sumAs !trainingData !trainingSums =
     let !lngammaSumAs = lngamma sumAs
         f t = U.sum $ U.zipWith w t alphas
             where w t_i a_i = lngamma (t_i + a_i) - lngamma (t_i + 1) - lngamma a_i
         g sumT = lngamma (sumT+1) + lngammaSumAs - lngamma (sumT + sumAs)
     in negate $ (V.sum $ V.map f trainingData)
               + (U.sum $ U.map g trainingSums)
-{-# INLINE costDD' #-}
+{-# INLINE cost' #-}
