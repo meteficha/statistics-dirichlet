@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------
--- | Module    : Math.Statistics.Dirichlet
+-- | Module    : Math.Statistics.Dirichlet.Density
 -- Copyright   : (c) 2009 Felipe Lessa
 -- License     : GPL
 --
@@ -9,7 +9,7 @@
 --
 --------------------------------------------------------------------------
 
-module Math.Statistics.Dirichlet
+module Math.Statistics.Dirichlet.Density
     (TrainingVector
     ,TrainingVectors
     ,StepSize(..)

@@ -3,7 +3,7 @@ Build-Type:          Simple
 Tested-With:         GHC
 Category:            Math
 Name:                statistics-dirichlet
-Version:             0.2
+Version:             0.3
 Stability:           experimental
 License:             GPL
 License-File:        LICENSE
@@ -21,4 +21,4 @@ Library
   Ghc-Options: -Wall -O2
   Extensions: BangPatterns
   Exposed-Modules:
-    Math.Statistics.Dirichlet
+    Math.Statistics.Dirichlet.Density
