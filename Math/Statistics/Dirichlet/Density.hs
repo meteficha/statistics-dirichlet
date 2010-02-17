@@ -32,7 +32,7 @@ import Math.Statistics.Dirichlet.Util
 
 
 -- | A Dirichlet density.
-newtype DirichletDensity = DD (U.Vector Double) deriving (Eq)
+newtype DirichletDensity = DD {unDD :: U.Vector Double} deriving (Eq)
 
 instance Show DirichletDensity where
     showsPrec prec (DD v) =
