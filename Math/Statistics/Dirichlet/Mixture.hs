@@ -312,10 +312,10 @@ derive (DM initial_qs initial_as)
         -- iterating if the delta was calculated.  Otherwise we
         -- wouldn't be able to tell the caller why the delta was
         -- still big when we reached the limit.
-        in case (calcCost, delta <= minDelta', delta <= jumpDelta', iter >= maxIter') of
+        in case (calcCost, delta <= minDelta', iter >= maxIter', delta <= jumpDelta') of
              (True,True,_,_) -> Result Delta   iter delta cost' $ DM qs as'
-             (True,_,True,_) -> trainWeights (iter+1) cost' qs ws' as' as_sums'
-             (True,_,_,True) -> Result MaxIter iter delta cost' $ DM qs as'
+             (True,_,True,_) -> Result MaxIter iter delta cost' $ DM qs as'
+             (True,_,_,True) -> trainWeights (iter+1) cost' qs ws' as' as_sums'
              _               -> trainAlphas  (iter+1) cost' qs ws' as' as_sums'
 
       trainWeights !oldIter !veryOldCost !oldQs !ws !as !as_sums =
