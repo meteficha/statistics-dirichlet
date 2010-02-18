@@ -278,6 +278,7 @@ derive (DM initial_qs initial_as)
         in trainAlphas 1 infinity initial_qs ws as as_sums
 
       trainAlphas !iter !oldCost !qs !ws !as !as_sums =
+        {-# SCC "trainAlphas" #-}
         -- Calculate Prob(a | n, theta)
         let !probs_a_n   = prob_a_n_theta ns (DM qs as)
 
@@ -319,6 +320,7 @@ derive (DM initial_qs initial_as)
              _               -> trainAlphas  (iter+1) cost' qs ws' as' as_sums'
 
       trainWeights !oldIter !veryOldCost !oldQs !ws !as !as_sums =
+        {-# SCC "trainWeights" #-}
         -- Prepare invariant parts.
         let !probs_a_n_mk = prob_a_n_theta_w ns as
             !cost_mk      = costWeight (ns, ns_sums) as as_sums
