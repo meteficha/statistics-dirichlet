@@ -20,10 +20,19 @@ module Math.Statistics.Dirichlet
     ,M.Component
     ,M.fromList
     ,M.toList
+     -- * Options (reexported)
+    ,TrainingVector
+    ,TrainingVectors
+    ,StepSize(..)
+    ,Delta
+    ,Predicate(..)
+    ,Reason(..)
+    ,Result(..)
     -- * Functions
     ,derive
     ,cost
     -- * Util
+    ,DirichletDensity(..)
     ,apply)
     where
 
