@@ -127,6 +127,11 @@ toList (DM qs as) =
 -- given the vector of counts /n/".  We return the probabilities
 -- for all /j/ in each vector.
 --
+-- The order of the result is inversed for performance.  In the
+-- outer boxed vector there are /j/ elements.  The /i/-th inner
+-- unboxed vector contains that probability for each of the
+-- training vectors.
+--
 -- Calculated as per equation (39) using 'logBeta'.
 prob_a_n_theta :: TrainingVectors -> DirichletMixture -> V.Vector (U.Vector Double)
 prob_a_n_theta ns (DM qs as) =
@@ -139,7 +144,7 @@ prob_a_n_theta ns (DM qs as) =
         factors n       = let fs = U.izipWith (calc n) qs logBetaAlphas
                               total = U.sum fs
                           in U.map (/ total) fs
-    in V.map factors ns
+    in transpose (V.length as) $ V.map factors ns
 
 
 -- | Customized version of @prob_a_n_theta@ used when the weights
@@ -155,13 +160,19 @@ prob_a_n_theta_w ns as =
         precalc n i lb_a = let a = unDD (as V.! i)
                            in exp (logBeta (U.zipWith (+) n a) - lb_a)
         !prefactors      = V.map (\n -> U.imap (precalc n) logBetaAlphas) ns
+        !as_length       = V.length as
 
     in \qs ->
         let -- Calculate the final factors.
             calc pfs = let fs = U.zipWith (*) pfs qs
                            total = U.sum fs
                        in U.map (/ total) fs
-        in V.map calc prefactors
+        in transpose as_length $ V.map calc prefactors
+
+
+transpose :: Int -> V.Vector (U.Vector Double) -> V.Vector (U.Vector Double)
+transpose !as_length !vs =
+    V.generate as_length $ \i -> G.unstream $ G.stream $ V.map (U.! i) vs
 
 
 -- | Cost function for deriving a Dirichlet mixture (equation
