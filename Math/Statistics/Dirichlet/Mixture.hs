@@ -16,13 +16,9 @@ module Math.Statistics.Dirichlet.Mixture
     ,Component
     ,fromList
     ,toList
-    -- * Main functions
+    -- * Functions
     ,derive
-    ,cost
-    -- * Auxiliary functions
-    ,prob_a_n_theta
-    ,prob_a_n_theta_w
-    ,costWorker)
+    ,cost)
     where
 
 import qualified Data.Vector as V
