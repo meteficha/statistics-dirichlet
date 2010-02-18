@@ -16,6 +16,7 @@ module Math.Statistics.Dirichlet.Mixture
     ,Component
     ,fromList
     ,toList
+    ,fromDD
     -- * Functions
     ,derive
     ,cost)
@@ -115,6 +116,11 @@ toList (DM qs as) =
     let qs' = U.toList qs
         as' = V.toList $ V.map D.toList as
     in zip qs' as'
+
+-- | Constructs a Dirichlet mixture of one component from a
+-- Dirichlet density.
+fromDD :: DirichletDensity -> DirichletMixture
+fromDD = DM (U.singleton 1) . V.singleton
 
 
 
