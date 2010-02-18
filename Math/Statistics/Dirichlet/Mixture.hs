@@ -17,6 +17,7 @@ module Math.Statistics.Dirichlet.Mixture
     ,fromList
     ,toList
     -- * Main functions
+    ,derive
     ,cost
     -- * Auxiliary functions
     ,prob_a_n_theta
@@ -203,3 +204,85 @@ costWorker (!ns, !ns_sums) (DM !qs !as) !as_sums =
                   as_sums lngamma_as_sums
         !lngamma_as_sums = U.map lngamma as_sums
     in negate $ V.sum $ V.imap ((log .) . prob_n_theta) ns
+
+-- | Derive a Dirichlet mixture using a maximum likelihood method
+-- as described by Karplus et al (equation 25).  All training
+-- vectors should have the same length, however this is not
+-- verified.
+derive :: DirichletMixture -> Predicate -> StepSize
+         -> TrainingVectors -> Result DirichletMixture
+derive (DM initial_qs initial_as)
+       (Pred maxIter' minDelta_ deltaSteps' jumpDelta_)
+       (Step step) ns
+    | V.length ns == 0        = err "empty training data"
+    | U.length initial_qs < 1 = err "empty initial weights vector"
+    | V.length initial_as < 1 = err "empty initial alphas vector"
+    | maxIter' < 1            = err "non-positive maxIter"
+    | minDelta_ < 0           = err "negative minDelta"
+    | jumpDelta_ < 0          = err "negative jumpDelta"
+    | jumpDelta_ < minDelta_  = err "minDelta greater than jumpDelta"
+    | deltaSteps' < 1         = err "non-positive deltaSteps"
+    | step <= 0               = err "non-positive step"
+    | step >= 1               = err "step greater than one"
+    | otherwise               = train
+    where
+      err = error . ("Dirichlet.derive: " ++)
+
+      -- Compensate the different deltaSteps.
+      !minDelta'    = minDelta_  * fromIntegral deltaSteps'
+      !jumpDelta'   = jumpDelta_ * fromIntegral deltaSteps'
+
+      -- Sums of each training sequence.
+      ns_sums :: U.Vector Double
+      !ns_sums = G.unstream $ G.stream $ V.map U.sum ns
+
+      -- Functions that work on the alphas only (and not their logs).
+      calc_as_sums = G.unstream . G.stream . V.map (U.sum . unDD)
+
+      -- Start training in the zero-th iteration and with
+      -- infinite inital cost.
+      train =
+        let ws      = V.map (U.map log . unDD) as
+            as      = initial_as
+            as_sums = calc_as_sums as
+        in trainAlphas 0 infinity initial_qs ws as as_sums
+
+      trainAlphas !iter !oldCost !qs !ws !as !as_sums =
+        -- Calculate Prob(a | n, theta)
+        let !probs_a_n   = prob_a_n_theta ns (DM qs as)
+
+        -- Calculate all S_j's.
+            !sjs         = G.unstream $ G.stream $ V.map U.sum probs_a_n
+
+        -- Reestimate alpha's.
+            calc_ws !j =
+              -- Everything that doesn't depend on i, just on j.
+              let a_sum        = as_sums U.! j
+                  psi_a_sum    = psi a_sum
+                  probs        = probs_a_n V.! j
+                  sum_prob_psi = U.sum $ U.zipWith (*) probs $
+                                 U.map (psi . (+) a_sum) ns_sums
+              -----
+              in \(!i) !w_i !a_i ->
+                let !s1 = (sjs U.! j) * (psi_a_sum - psi a_i)
+                    !s2 = V.sum $ V.map f ns
+                    f n = (probs U.! i) * psi (n U.! i + a_i)
+                in w_i + step * a_i * (s1 + s2 - sum_prob_psi)
+            !ws' = V.izipWith (\j w (DD a) -> U.izipWith (calc_ws j) w a) ws as
+            !as' = V.map (DD . U.map exp) ws'
+
+        -- Recalculate constants.
+            !as_sums' = calc_as_sums as'
+            !calcCost = iter `mod` deltaSteps' == 0
+            !cost'    = if calcCost then newCost else oldCost
+             where newCost = costWorker (ns, ns_sums) (DM qs as') as_sums'
+            !delta    = abs (cost' - oldCost)
+
+        -- Verify convergence.  Even with MaxIter we only stop
+        -- iterating if the delta was calculated.  Otherwise we
+        -- wouldn't be able to tell the caller why the delta was
+        -- still big when we reached the limit.
+        in case (calcCost, delta <= minDelta', iter >= maxIter') of
+             (True, True, _) -> Result Delta   iter delta cost' $ DM qs as'
+             (True, _, True) -> Result MaxIter iter delta cost' $ DM qs as'
+             _               -> trainAlphas (iter+1) cost' qs ws' as' as_sums'
