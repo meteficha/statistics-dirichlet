@@ -27,6 +27,7 @@ import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
 
 import Control.Parallel.Strategies (NFData(..), rwhnf)
+import Data.Function (fix)
 import Numeric.GSL.Special.Gamma (lngamma)
 import Numeric.GSL.Special.Psi (psi)
 
@@ -262,6 +263,9 @@ derive (DM initial_qs initial_as)
       ns_sums :: U.Vector Double
       !ns_sums = G.unstream $ G.stream $ V.map U.sum ns
 
+      -- Reciprocal of the number of training sequences.
+      !recip_m = recip $ fromIntegral $ V.length ns
+
       -- Functions that work on the alphas only (and not their logs).
       calc_as_sums = G.unstream . G.stream . V.map (U.sum . unDD)
 
@@ -308,7 +312,30 @@ derive (DM initial_qs initial_as)
         -- iterating if the delta was calculated.  Otherwise we
         -- wouldn't be able to tell the caller why the delta was
         -- still big when we reached the limit.
-        in case (calcCost, delta <= minDelta', iter >= maxIter') of
-             (True, True, _) -> Result Delta   iter delta cost' $ DM qs as'
-             (True, _, True) -> Result MaxIter iter delta cost' $ DM qs as'
-             _               -> trainAlphas (iter+1) cost' qs ws' as' as_sums'
+        in case (calcCost, delta <= minDelta', delta <= jumpDelta', iter >= maxIter') of
+             (True,True,_,_) -> Result Delta   iter delta cost' $ DM qs as'
+             (True,_,True,_) -> trainWeights (iter+1) cost' qs ws' as' as_sums'
+             (True,_,_,True) -> Result MaxIter iter delta cost' $ DM qs as'
+             _               -> trainAlphas  (iter+1) cost' qs ws' as' as_sums'
+
+      trainWeights !oldIter !veryOldCost !oldQs !ws !as !as_sums =
+        -- Prepare invariant parts.
+        let !probs_a_n_mk = prob_a_n_theta_w ns as
+            !cost_mk      = costWeight (ns, ns_sums) as as_sums
+        in ($ oldQs) . ($ veryOldCost) . ($ oldIter) . fix $ \again !iter !oldCost !qs ->
+          -- Reestimate weight's.
+          let !probs_a_n = probs_a_n_mk qs
+              qs' = G.unstream $ G.stream $ V.map ((*) recip_m . U.sum) probs_a_n
+
+          -- Recalculate constants.
+              !calcCost = iter `mod` deltaSteps' == 0
+              !cost'    = if calcCost then cost_mk qs' else oldCost
+              !delta    = abs (cost' - oldCost)
+
+        -- Verify convergence.  We never stop the process here.
+        in case (calcCost, delta <= jumpDelta') of
+             (True,True) -> trainAlphas (iter+1) cost' qs' ws as as_sums
+             _           -> again (iter+1) cost' qs'
+
+
+
