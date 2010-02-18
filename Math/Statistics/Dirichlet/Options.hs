@@ -52,6 +52,8 @@ data Predicate = Pred
                            -- before recalculating the delta.  If
                            -- @deltaSteps@ is @1@ then it will be
                            -- recalculated on every step.
+    ,maxWeightIter :: !Int -- ^ Maximum number of iterations on
+                           -- each weight step.
     ,jumpDelta  :: !Delta  -- ^ Used only when calculating mixtures.
                            -- When the delta drops below this cutoff
                            -- the computation changes from estimating

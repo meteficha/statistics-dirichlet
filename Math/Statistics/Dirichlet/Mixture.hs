@@ -239,7 +239,7 @@ costWeight (!ns, !ns_sums) !as !as_sums =
 derive :: DirichletMixture -> Predicate -> StepSize
          -> TrainingVectors -> Result DirichletMixture
 derive (DM initial_qs initial_as)
-       (Pred maxIter' minDelta_ deltaSteps' jumpDelta_)
+       (Pred maxIter' minDelta_ deltaSteps' maxWeightIter' jumpDelta_)
        (Step step) ns
     | V.length ns == 0        = err "empty training data"
     | U.length initial_qs < 1 = err "empty initial weights vector"
@@ -322,20 +322,21 @@ derive (DM initial_qs initial_as)
         -- Prepare invariant parts.
         let !probs_a_n_mk = prob_a_n_theta_w ns as
             !cost_mk      = costWeight (ns, ns_sums) as as_sums
-        in ($ oldQs) . ($ veryOldCost) . ($ oldIter) . fix $ \again !iter !oldCost !qs ->
+        in ($ oldQs) . ($ veryOldCost) . ($ maxWeightIter') . fix $
+               \again !itersLeft !oldCost !qs ->
           -- Reestimate weight's.
           let !probs_a_n = probs_a_n_mk qs
               qs' = G.unstream $ G.stream $ V.map ((*) recip_m . U.sum) probs_a_n
 
           -- Recalculate constants.
-              !calcCost = iter `mod` deltaSteps' == 0
+              !calcCost = itersLeft `mod` deltaSteps' == 0
               !cost'    = if calcCost then cost_mk qs' else oldCost
               !delta    = abs (cost' - oldCost)
 
         -- Verify convergence.  We never stop the process here.
-        in case (calcCost, delta <= jumpDelta') of
-             (True,True) -> trainAlphas (iter+1) cost' qs' ws as as_sums
-             _           -> again (iter+1) cost' qs'
+        in case (calcCost && delta <= jumpDelta', itersLeft <= 0) of
+             (False,False) -> again (itersLeft-1) cost' qs'
+             _             -> trainAlphas oldIter cost' qs' ws as as_sums
 
 
 
