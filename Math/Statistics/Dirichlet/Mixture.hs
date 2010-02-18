@@ -189,7 +189,7 @@ cost ns dm@(DM _ as) =
 
 
 -- | Worker of 'cost' function that avoids repeating some
--- computations that may be done elsewhere.
+-- computations that are done in when reestimating alphas.
 costWorker :: (TrainingVectors, U.Vector Double) -> DirichletMixture -> U.Vector Double -> Double
 costWorker (!ns, !ns_sums) (DM !qs !as) !as_sums =
     let -- From the equation (54).
@@ -206,6 +206,30 @@ costWorker (!ns, !ns_sums) (DM !qs !as) !as_sums =
                   as_sums lngamma_as_sums
         !lngamma_as_sums = U.map lngamma as_sums
     in negate $ V.sum $ V.imap ((log .) . prob_n_theta) ns
+
+-- | Version of 'cost' function that avoids repeating a lot of
+-- computations that are done when reestimating weights.
+costWeight :: (TrainingVectors, U.Vector Double) -> V.Vector DirichletDensity
+           -> U.Vector Double -> (U.Vector Double -> Double)
+costWeight (!ns, !ns_sums) !as !as_sums =
+    let -- From the equation (54).
+        prob_n_a !n !n_sum !a !a_sum !lngamma_a_sum =
+            let !s = lngamma (n_sum+1) + lngamma_a_sum - lngamma (n_sum+a_sum)
+                f n_i a_i = lngamma (n_i + a_i) - lngamma (n_i + 1) - lngamma a_i
+            in exp $ s + U.sum (U.zipWith f n a)
+
+        -- From equation (17).
+        prepare_prob_n_theta i n =
+            let !n_sum = ns_sums U.! i
+            in {- U.sum $ U.zipWith (*) qs $ -}
+               U.izipWith (prob_n_a n n_sum . unDD . (as V.!))
+                  as_sums lngamma_as_sums
+        !lngamma_as_sums = U.map lngamma as_sums
+        !prepared = V.imap prepare_prob_n_theta ns
+
+        -- Final worker function.
+        final qs = log . U.sum . U.zipWith (*) qs
+    in \(!qs) -> negate $ V.sum $ V.map (final qs) prepared
 
 -- | Derive a Dirichlet mixture using a maximum likelihood method
 -- as described by Karplus et al (equation 25).  All training
