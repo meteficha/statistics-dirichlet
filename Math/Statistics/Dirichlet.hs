@@ -14,13 +14,13 @@
 --------------------------------------------------------------------------
 
 module Math.Statistics.Dirichlet
-    (-- * Data types (reexported)
+    (-- * Data types (re-exported)
      DirichletMixture(..)
     ,M.empty
     ,M.Component
     ,M.fromList
     ,M.toList
-     -- * Options (reexported)
+     -- * Options (re-exported)
     ,TrainingVector
     ,TrainingVectors
     ,StepSize(..)

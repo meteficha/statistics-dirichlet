@@ -127,8 +127,8 @@ fromDD = DM (U.singleton 1) . V.singleton
 
 
 -- | /Prob(a_j | n, theta)/ Defined in equation (16), "the
--- posterior probability of the /j/-th component of the mixture
--- given the vector of counts /n/".  We return the probabilities
+-- posterior probability of the j-th component of the mixture
+-- given the vector of counts n".  We return the probabilities
 -- for all /j/ in each vector.
 --
 -- The order of the result is inversed for performance.  In the
