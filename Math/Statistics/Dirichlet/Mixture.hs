@@ -245,7 +245,7 @@ derive (DM initial_qs initial_as)
         let ws      = V.map (U.map log . unDD) as
             as      = initial_as
             as_sums = calc_as_sums as
-        in trainAlphas 0 infinity initial_qs ws as as_sums
+        in trainAlphas 1 infinity initial_qs ws as as_sums
 
       trainAlphas !iter !oldCost !qs !ws !as !as_sums =
         -- Calculate Prob(a | n, theta)

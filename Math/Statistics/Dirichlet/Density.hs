@@ -104,7 +104,7 @@ derive (DD initial) (Pred maxIter' minDelta_ deltaSteps' _)
 
       -- Start training in the zero-th iteration and with
       -- infinite inital cost.
-      train = train' 0 infinity (U.sum initial) $
+      train = train' 1 infinity (U.sum initial) $
               U.map (\x -> (log x, x)) initial
 
       train' !iter !oldCost !sumAs !alphas =
