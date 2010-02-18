@@ -21,7 +21,7 @@ module Math.Statistics.Dirichlet.Mixture
     -- * Auxiliary functions
     ,prob_a_n_theta
     ,prob_a_n_theta_w
-    ,cost')
+    ,costWorker)
     where
 
 import qualified Data.Vector as V
@@ -182,14 +182,14 @@ cost :: TrainingVectors -> DirichletMixture -> Double
 cost ns dm@(DM _ as) =
     let ns_sums    = G.unstream $ G.stream $ V.map U.sum ns
         as_sums    = G.unstream $ G.stream $ V.map (U.sum . unDD) as
-    in cost' ns dm ns_sums as_sums
+    in costWorker ns dm ns_sums as_sums
 
 
 -- | Worker of 'cost' function that avoids repeating some
 -- computations that may be done elsewhere.
-cost' :: TrainingVectors -> DirichletMixture
-      -> U.Vector Double -> U.Vector Double -> Double
-cost' !ns (DM !qs !as) !ns_sums !as_sums =
+costWorker :: TrainingVectors -> DirichletMixture
+           -> U.Vector Double -> U.Vector Double -> Double
+costWorker !ns (DM !qs !as) !ns_sums !as_sums =
     let -- From the equation (54).
         prob_n_a !n !n_sum !a !a_sum !lngamma_a_sum =
             let !s = lngamma (n_sum+1) + lngamma_a_sum - lngamma (n_sum+a_sum)
