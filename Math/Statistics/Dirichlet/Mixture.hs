@@ -136,18 +136,29 @@ fromDD = DM (U.singleton 1) . V.singleton
 -- unboxed vector contains that probability for each of the
 -- training vectors.
 --
--- Calculated as per equation (39) using 'logBeta'.
+-- Calculated as per equation (39) using 'logBeta'.  If we take
+-- the numerator of the right hand side of equation (39) as /Y_j/
+-- and the left hand side as /P_j/, then /P_j/ is proportional to
+-- /Y_j/ normalized to sum to 1.  We may have problems if /P_j/
+-- is too large or too small.  Using the suggestion from the
+-- paper, we may multiply all /P_j/ by a constant before
+-- normalizing everything.  We calculate /P_j/ using a logarithm,
+-- so that means we may freely add or subtract a constant from
+-- the logarithm before appling the exponential function.  This
+-- is really essencial.
 prob_a_n_theta :: TrainingVectors -> DirichletMixture -> V.Vector (U.Vector Double)
 prob_a_n_theta ns (DM qs as) =
     let -- Precalculate logBeta of all components
-        !logBetaAlphas  = G.unstream $ G.stream $ V.map (logBeta . unDD) as
+        !logBetaAlphas = G.unstream $ G.stream $ V.map (logBeta . unDD) as
 
         -- Calculate the factors for one of the training vectors.
-        calc n i q lb_a = let a = unDD (as V.! i)
-                          in q * exp (logBeta (U.zipWith (+) n a) - lb_a)
-        factors n       = let fs = U.izipWith (calc n) qs logBetaAlphas
-                              total = U.sum fs
-                          in U.map (/ total) fs
+        calc n i lb_a  = let !a = unDD (as V.! i)
+                         in logBeta (U.zipWith (+) n a) - lb_a
+        factors n      = let fs  = U.imap (calc n) logBetaAlphas
+                             !c  = U.maximum fs  -- see the note above
+                             fs' = U.zipWith (\q f -> q * exp (f - c)) qs fs
+                             !total = U.sum fs'
+                         in U.map (/ total) fs'
     in transpose (V.length as) $ V.map factors ns
 
 
@@ -161,9 +172,11 @@ prob_a_n_theta_w ns as =
         !logBetaAlphas   = G.unstream $ G.stream $ V.map (logBeta . unDD) as
 
         -- Precalculate the factors for one of the training vectors.
-        precalc n i lb_a = let a = unDD (as V.! i)
-                           in exp (logBeta (U.zipWith (+) n a) - lb_a)
-        !prefactors      = V.map (\n -> U.imap (precalc n) logBetaAlphas) ns
+        precalc n i lb_a = let !a = unDD (as V.! i)
+                           in logBeta (U.zipWith (+) n a) - lb_a
+        norm fs          = let !c = U.maximum fs
+                           in U.map (exp . subtract c) fs
+        !prefactors      = V.map (\n -> norm $ U.imap (precalc n) logBetaAlphas) ns
         !as_length       = V.length as
 
     in \qs ->
