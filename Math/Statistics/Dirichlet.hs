@@ -36,9 +36,6 @@ module Math.Statistics.Dirichlet
     ,apply)
     where
 
-import qualified Data.Vector as V
-import qualified Data.Vector.Unboxed as U
-
 import qualified Math.Statistics.Dirichlet.Density as D
 import qualified Math.Statistics.Dirichlet.Mixture as M
 import Math.Statistics.Dirichlet.Density (DirichletDensity(..))
@@ -52,9 +49,9 @@ import Math.Statistics.Dirichlet.Options
 -- is applied.
 apply :: (DirichletDensity -> a) -> (DirichletMixture -> a)
       -> DirichletMixture -> a
-apply fd fm dm@(DM qs as)
-      | U.length qs == 1 = fd (V.head as)
-      | otherwise        = fm dm
+apply fd fm dm@(DM _ _ as)
+      | M.dmComponents dm == 1 = fd (DD as)
+      | otherwise              = fm dm
 
 
 -- | Cost function for deriving a Dirichlet mixture (equation
