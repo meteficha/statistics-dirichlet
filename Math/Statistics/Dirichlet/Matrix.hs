@@ -50,7 +50,7 @@ import qualified Data.Vector.Unboxed as U
 data Matrix = M {mRows :: {-# UNPACK #-} !Int
                 ,mCols :: {-# UNPACK #-} !Int
                 ,mData :: {-# UNPACK #-} !(U.Vector Double)}
-            deriving (Eq, Ord)
+            deriving (Eq, Ord, Show)
 
 -- | Size of the matrix.
 size :: Matrix -> (Int,Int)
