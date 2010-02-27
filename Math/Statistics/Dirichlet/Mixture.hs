@@ -221,7 +221,7 @@ cost ns dm@(DM _ as) =
 
 
 -- | Worker of 'cost' function that avoids repeating some
--- computations that are done in when reestimating alphas.
+-- computations that are done when reestimating alphas.
 cost_worker :: (TrainingVectors, U.Vector Double) -> DirichletMixture
             -> U.Vector Double -> Double
 cost_worker (!ns, !ns_sums) (DM !qs !as) !as_sums =
