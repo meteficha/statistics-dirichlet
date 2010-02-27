@@ -22,6 +22,7 @@ module Math.Statistics.Dirichlet.Matrix
     ,replicate
     ,replicateRows
     ,fromVector
+    ,fromVectorT
      -- * Rows
     ,rows
     ,(!!!)
@@ -41,9 +42,11 @@ module Math.Statistics.Dirichlet.Matrix
     ) where
 
 import Prelude hiding (replicate, map, zipWith)
+import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.Vector.Fusion.Stream as S
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
+import qualified Data.Vector.Unboxed.Mutable as MU
 
 
 -- | A matrix.
@@ -76,7 +79,7 @@ replicateRows r v =
          ,mCols = c
          ,mData = U.generate (r*c) (\i -> v U.! (i `mod` c))}
 
--- | Creates a matrix from a vector of vectors.  It is not
+-- | Creates a matrix from a vector of vectors.  It *is not*
 -- verified that the vectors have the right length.
 fromVector :: (G.Vector v (w Double), G.Vector w Double)
            => (Int,Int) -> v (w Double) -> Matrix
@@ -84,7 +87,28 @@ fromVector (r,c) v =
     M {mRows = r
       ,mCols = c
       ,mData = G.unstream $ S.concatMap G.stream $ G.stream v}
-{-# INLINE fromVector #-}
+
+-- | Creates a matrix from a vector of vectors.  The vectors are
+-- transposed, so @fromVectorT size@ is the same as @transpose
+-- . fromVector size@ (note that the @size@ is the same). It *is*
+-- verified that the vectors have the right length.
+fromVectorT :: (G.Vector v (w Double), G.Vector w Double)
+           => (Int,Int) -> v (w Double) -> Matrix
+fromVectorT (r,c) v =
+    M {mRows = c
+      ,mCols = r
+      ,mData = unsafePerformIO $ do
+                 m <- MU.new (r*c)
+                 fillCol m r
+                 G.unsafeFreeze m}
+  where
+    fillCol _ 0 = return ()
+    fillCol m j = let j' = j-1
+                  in fillRow m (v G.! j') j' c >> fillCol m j'
+    fillRow _ _   _  0 = return ()
+    fillRow m clm j' i = let i' = i-1
+                             x  = clm G.! i'
+                         in MU.write m (i' * r + j') x >> fillRow m clm j' i'
 
 
 
