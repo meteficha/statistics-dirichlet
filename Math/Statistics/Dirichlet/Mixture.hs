@@ -28,6 +28,7 @@ module Math.Statistics.Dirichlet.Mixture
 
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
+import qualified Data.Vector.Fusion.Stream as S
 import qualified Data.Vector.Unboxed as U
 
 import Control.Parallel.Strategies (NFData(..), rwhnf)
@@ -240,7 +241,7 @@ prob_a_n_theta_weights ns components parameters as =
 
 
 transpose :: Int -> V.Vector (U.Vector Double) -> V.Vector (U.Vector Double)
-transpose !as_length !vs =
+transpose !as_length !vs = -- as_length should be equal to U.length (V.head vs)
     V.generate as_length $ \i -> G.unstream $ G.stream $ V.map (U.! i) vs
 
 
@@ -315,42 +316,45 @@ cost_weight (!ns, !ns_sums) !parameters !as !as_sums =
 
 
 -- | Derivative of the cost function with respect @w_{i,j}@,
--- defined by Equation (22).
-del_cost_w :: TrainingVectors -> DirichletMixture -> V.Vector (U.Vector Double)
+-- defined by Equation (22).  The result is given in the same
+-- size and order as the 'dmDensitites' vector.
+del_cost_w :: TrainingVectors -> DirichletMixture -> U.Vector Double
 del_cost_w ns dm =
     let ns_sums = G.unstream $ G.stream $ V.map U.sum ns
         as_sums = dmap U.sum dm
-    in del_cost_w_worker (ns, ns_sums) dm as_sums
+        tns     = transpose (dmComponents dm) ns
+    in del_cost_w_worker (ns, tns, ns_sums) dm as_sums
 
 
 -- | Worker function of 'del_cost_w'.
-del_cost_w_worker :: (TrainingVectors, U.Vector Double) -> DirichletMixture
-                  -> U.Vector Double -> V.Vector (U.Vector Double)
-del_cost_w_worker (!ns, !ns_sums) dm !as_sums =
+del_cost_w_worker :: (TrainingVectors, V.Vector (U.Vector Double), U.Vector Double)
+                  -> DirichletMixture -> U.Vector Double -> U.Vector Double
+del_cost_w_worker (!ns, !tns, !ns_sums) dm !as_sums =
     let -- Calculate Prob(a | n, theta)
         !probs_a_n   = prob_a_n_theta ns dm
 
         -- Calculate all S_j's.
         !sjs         = G.unstream $ G.stream $ V.map U.sum probs_a_n
 
-        -- @calc j _ i _ _@ calculates the derivative of the cost
-        -- function with respect to @w_{i,j}@.  The other
-        -- arguments come from arrays that we @zipWith@ below.
-        calc !j !probs =
+        -- @calc j _ _ i _ _@ calculates the derivative of the
+        -- cost function with respect to @w_{i,j}@.  The other
+        -- arguments come from vector that we @zipWith@ below.
+        calc j probs tn_j =
           -- Everything that doesn't depend on i, just on j.
           let !a_sum        = as_sums U.! j
               !psi_a_sum    = psi a_sum
               !sum_prob_psi = U.sum $ U.zipWith (*) probs $
                               U.map (psi . (+) a_sum) ns_sums
           -----
-          in \(!i) !p_i !a_i ->
+          in \p_i a_i ->
             let !s1 = (sjs U.! j) * (psi_a_sum - psi a_i)
-                !s2 = V.sum $ V.map f ns
-                f n = p_i * psi (n U.! i + a_i)
+                !s2 = U.sum $ U.map (\n_i -> p_i * psi (n_i + a_i)) tn_j
             in a_i * (s1 + s2 - sum_prob_psi)
 
-    in V.imap (\j p -> let !f = calc j p
-                       in U.izipWith f p (dm !!! j)) probs_a_n
+    in G.unstream $ S.concatMap G.stream $ G.stream $
+       V.izipWith (\j p_j tn_j -> let !f = calc j p_j tn_j
+                                  in U.zipWith f p_j (dm !!! j))
+                  probs_a_n tns
 
 
 
@@ -395,6 +399,9 @@ derive idm@(DM parameters initial_qs initial_as)
       ns_sums :: U.Vector Double
       !ns_sums = G.unstream $ G.stream $ V.map U.sum ns
 
+      -- Transposed training sequences.
+      !tns = transpose components ns
+
       -- Reciprocal of the number of training sequences.
       !recip_m = recip $ fromIntegral $ V.length ns
 
@@ -412,11 +419,9 @@ derive idm@(DM parameters initial_qs initial_as)
       trainAlphas !iter !oldCost !qs !ws !as !as_sums =
         {-# SCC "trainAlphas" #-}
         -- Calculate derivative, follow in steepest descent.
-        let derivative = del_cost_w_worker (ns, ns_sums) (DM parameters qs as) as_sums
-            wsv   = V.fromList $ map unDD $ dmDensitiesL (DM parameters qs ws)
-            !wsv' = V.zipWith (U.zipWith ((+) . (step *))) derivative wsv
-            !ws'  = V.foldl1' (U.++) wsv'
-            !as'  = U.map exp ws'
+        let derivative = del_cost_w_worker (ns, tns, ns_sums) (DM parameters qs as) as_sums
+            !ws' = U.zipWith ((+) . (step *)) derivative ws
+            !as' = U.map exp ws'
 
         -- Recalculate constants.
             !as_sums' = calc_as_sums as'
