@@ -19,10 +19,11 @@ Library
   Build-Depends:
     base >= 3 && < 5, hmatrix >= 0.1 && < 0.9, vector == 0.5.*, parallel >= 1.0 && < 1.2
   Ghc-Options: -Wall -O2
-  Extensions: BangPatterns
+  Extensions: BangPatterns, FlexibleContexts
   Exposed-Modules:
     Math.Statistics.Dirichlet,
     Math.Statistics.Dirichlet.Density,
+    Math.Statistics.Dirichlet.Matrix,
     Math.Statistics.Dirichlet.Mixture,
     Math.Statistics.Dirichlet.Options,
     Math.Statistics.Dirichlet.Util
