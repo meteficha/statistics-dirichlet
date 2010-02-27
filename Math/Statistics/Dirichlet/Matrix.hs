@@ -14,9 +14,10 @@
 --------------------------------------------------------------------------
 
 module Math.Statistics.Dirichlet.Matrix
-    (-- * Data type
+    (-- * Basic
      Matrix(..)
     ,size
+    ,(!)
      -- * Constructing
     ,replicate
     ,replicateRows
@@ -35,6 +36,8 @@ module Math.Statistics.Dirichlet.Matrix
     ,uzipWith
     ,zipWith
     ,izipWith
+     -- * Other
+    ,transpose
     ) where
 
 import Prelude hiding (replicate, map, zipWith)
@@ -52,6 +55,10 @@ data Matrix = M {mRows :: {-# UNPACK #-} !Int
 -- | Size of the matrix.
 size :: Matrix -> (Int,Int)
 size m = (mRows m, mCols m)
+
+-- | Element at position.
+(!) :: Matrix -> (Int,Int) -> Double
+(!) m (r,c) = mData m U.! (r * mCols m + c)
 
 
 
@@ -140,6 +147,17 @@ izipWith f m = uzipWith (U.izipWith (f . indices m)) m
 
 indices :: Matrix -> Int -> (Int, Int)
 indices m i = i `divMod` mCols m
+
+
+
+transpose :: Matrix -> Matrix
+transpose m =
+    let f i = let (r,c) = indices n i
+              in m ! (c,r)
+        n = M {mRows = mCols m
+              ,mCols = mRows m
+              ,mData = U.generate (mRows m * mCols m) f}
+    in n
 
 
 
