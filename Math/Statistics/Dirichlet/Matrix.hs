@@ -26,7 +26,6 @@ module Math.Statistics.Dirichlet.Matrix
      -- * Rows
     ,rows
     ,(!!!)
-    ,rowMap
      -- * Columns
     ,cols
     ,col
@@ -34,15 +33,18 @@ module Math.Statistics.Dirichlet.Matrix
     ,umap
     ,map
     ,imap
+    ,rowmap
     ,uzipWith
     ,zipWith
     ,izipWith
+    ,rzipWith
      -- * Other
     ,transpose
     ) where
 
 import Prelude hiding (replicate, map, zipWith)
 import System.IO.Unsafe (unsafePerformIO)
+import qualified Data.Vector as V
 import qualified Data.Vector.Fusion.Stream as S
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
@@ -82,19 +84,19 @@ replicateRows r v =
 -- | Creates a matrix from a vector of vectors.  It *is not*
 -- verified that the vectors have the right length.
 fromVector :: (G.Vector v (w Double), G.Vector w Double)
-           => (Int,Int) -> v (w Double) -> Matrix
-fromVector (r,c) v =
-    M {mRows = r
-      ,mCols = c
+           => v (w Double) -> Matrix
+fromVector v =
+    M {mRows = G.length v
+      ,mCols = G.length (G.head v)
       ,mData = G.unstream $ S.concatMap G.stream $ G.stream v}
 
 -- | Creates a matrix from a vector of vectors.  The vectors are
--- transposed, so @fromVectorT size@ is the same as @transpose
--- . fromVector size@ (note that the @size@ is the same). It *is*
--- verified that the vectors have the right length.
+-- transposed, so @fromVectorT@ is the same as @transpose
+-- . fromVector@. It *is* verified that the vectors have the
+-- right length.
 fromVectorT :: (G.Vector v (w Double), G.Vector w Double)
-           => (Int,Int) -> v (w Double) -> Matrix
-fromVectorT (r,c) v =
+           => v (w Double) -> Matrix
+fromVectorT v =
     M {mRows = c
       ,mCols = r
       ,mData = unsafePerformIO $ do
@@ -102,6 +104,8 @@ fromVectorT (r,c) v =
                  fillCol m r
                  G.unsafeFreeze m}
   where
+    r = G.length v
+    c = G.length (G.head v)
     fillCol _ 0 = return ()
     fillCol m j = let j' = j-1
                   in fillRow m (v G.! j') j' c >> fillCol m j'
@@ -115,18 +119,14 @@ fromVectorT (r,c) v =
 
 -- | /O(rows)/ Rows of the matrix.  Each element takes /O(1)/ time and
 -- storage.
-rows :: Matrix -> [U.Vector Double]
-rows m = do
-  i <- [0, mCols m .. U.length (mData m) - mCols m]
-  return $ U.unsafeSlice i (mCols m) (mData m)
+rows :: Matrix -> V.Vector (U.Vector Double)
+rows m = G.map (\i -> U.unsafeSlice i (mCols m) (mData m)) $
+         G.enumFromStepN 0 (mCols m) (mRows m)
 
 -- | /O(1)/ @m !!! i@ is the @i@-th row of the matrix.
 (!!!) :: Matrix -> Int -> U.Vector Double
 m !!! i = U.slice (i * mCols m) (mCols m) (mData m)
 
-rowMap :: (U.Vector Double -> Double) -> Matrix -> U.Vector Double
-rowMap f m = U.generate (mRows m) (f . s)
-    where s i = U.unsafeSlice (i * mCols m) (mCols m) (mData m)
 
 
 
@@ -134,8 +134,8 @@ rowMap f m = U.generate (mRows m) (f . s)
 
 -- | /O(rows*cols)/ Columns of the matrix.  Each element takes
 -- /O(rows)/ time and storage.
-cols :: Matrix -> [U.Vector Double]
-cols m = [m `col` i | i <- [0..mCols m - 1]]
+cols :: Matrix -> V.Vector (U.Vector Double)
+cols m = V.generate (mCols m) (m `col`)
 
 -- | /O(rows)/ @m `col` i@ is the @i@-th column of the matrix.
 col :: Matrix -> Int -> U.Vector Double
@@ -155,6 +155,10 @@ map f = umap (U.map f)
 imap :: ((Int,Int) -> Double -> Double) -> Matrix -> Matrix
 imap f m = umap (U.imap (f . indices m)) m
 
+rowmap :: (U.Vector Double -> Double) -> Matrix -> U.Vector Double
+rowmap f m = U.generate (mRows m) (f . s)
+    where s i = U.unsafeSlice (i * mCols m) (mCols m) (mData m)
+
 uzipWith :: (U.Vector Double -> U.Vector Double -> U.Vector Double)
          -> Matrix -> Matrix -> Matrix
 uzipWith f m n
@@ -168,6 +172,17 @@ zipWith f = uzipWith (U.zipWith f)
 izipWith :: ((Int,Int) -> Double -> Double -> Double)
          -> Matrix -> Matrix -> Matrix
 izipWith f m = uzipWith (U.izipWith (f . indices m)) m
+
+-- | @rzipWith f m n@ is a matrix with the same number of rows as
+-- @m@.  The @i@-th row is obtained by applying @f@ to the @i@-th
+-- rows of @m@ and @n@.
+rzipWith :: (Int -> U.Vector Double -> U.Vector Double -> U.Vector Double)
+          -> Matrix -> Matrix -> Matrix
+rzipWith f m n
+    | mRows m /= mRows n = materror "rzipWithN" "mRows"
+    | mCols m /= mCols n = materror "rzipWithN" "mCols"
+    | otherwise          = fromVector $ V.izipWith f (rows m) (rows n)
+
 
 indices :: Matrix -> Int -> (Int, Int)
 indices m i = i `divMod` mCols m
@@ -183,9 +198,9 @@ transpose m =
          ,mData = U.generate (mRows m * mCols m) f}
 
 {-# RULES
-  "transpose/transpose"   forall m.   transpose (transpose m) = m;
-  "transpose/fromVector"  forall v s. transpose (fromVector s v) = fromVectorT s v;
-  "transpose/fromVectorT" forall v s. transpose (fromVectorT s v) = fromVector s v;
+  "transpose/transpose"   forall m. transpose (transpose m) = m;
+  "transpose/fromVector"  forall v. transpose (fromVector v) = fromVectorT v;
+  "transpose/fromVectorT" forall v. transpose (fromVectorT v) = fromVector v;
   #-}
 
 

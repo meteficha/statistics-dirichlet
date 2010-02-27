@@ -78,11 +78,11 @@ dmComponents = U.length . dmWeights
 
 -- | Number of parameters each component has.
 dmParameters :: DirichletMixture -> Int
-dmParameters = M.mCols . dmDensities
+dmParameters = mCols . dmDensities
 
 -- | Separated list of densities.
 dmDensitiesL :: DirichletMixture -> [DirichletDensity]
-dmDensitiesL (DM _ as) = map DD $ M.rows as
+dmDensitiesL (DM _ as) = map DD $ V.toList $ M.rows as
 
 -- | @dm !!! i@ is the @i@-th density.  No bounding checks are
 -- made.
@@ -95,7 +95,7 @@ dmDensitiesL (DM _ as) = map DD $ M.rows as
 
 
 dmap :: (U.Vector Double -> Double) -> DirichletMixture -> U.Vector Double
-dmap f = M.rowMap f . dmDensities
+dmap f = M.rowmap f . dmDensities
 
 
 
@@ -151,9 +151,9 @@ fromList components =
 -- of components from a Dirichlet mixture.  There are no error
 -- conditions and @toList . fromList == id@.
 toList :: DirichletMixture -> [Component]
-toList (DM qs as) =
-    let qs' = U.toList qs
-        as' = map U.toList $ M.rows as
+toList dm =
+    let qs' = U.toList $ dmWeights dm
+        as' = map (U.toList . unDD) (dmDensitiesL dm)
     in zip qs' as'
 
 -- | Constructs a Dirichlet mixture of one component from a
@@ -191,7 +191,7 @@ fromDD (DD d) = DM (U.singleton 1) (M.replicateRows 1 d)
 -- so that means we may freely add or subtract a constant from
 -- the logarithm before appling the exponential function.  This
 -- is really essencial.
-prob_a_n_theta :: TrainingVectors -> DirichletMixture -> V.Vector (U.Vector Double)
+prob_a_n_theta :: TrainingVectors -> DirichletMixture -> Matrix
 prob_a_n_theta ns dm@(DM qs _) =
     let -- Precalculate logBeta of all components
         !logBetaAlphas = dmap logBeta dm
@@ -204,17 +204,17 @@ prob_a_n_theta ns dm@(DM qs _) =
                              fs' = U.zipWith (\q f -> q * exp (f - c)) qs fs
                              !total = U.sum fs'
                          in U.map (/ total) fs'
-    in transpose (dmComponents dm) $ V.map factors ns
+    in M.fromVectorT $ V.map factors ns
 
 
 -- | Customized version of @prob_a_n_theta@ used when the weights
 -- are being estimated.  Precomputes everything that doesn't
 -- depend on the weight.
 prob_a_n_theta_weights :: TrainingVectors -> Matrix
-                       -> (U.Vector Double -> V.Vector (U.Vector Double))
+                       -> (U.Vector Double -> Matrix)
 prob_a_n_theta_weights ns as =
     let -- Precalculate logBeta of all components
-        !logBetaAlphas   = M.rowMap logBeta as
+        !logBetaAlphas   = M.rowmap logBeta as
 
         -- Precalculate the factors for one of the training vectors.
         precalc n i lb_a = let !a = as M.!!! i
@@ -228,12 +228,7 @@ prob_a_n_theta_weights ns as =
             calc pfs = let fs = U.zipWith (*) pfs qs
                            total = U.sum fs
                        in U.map (/ total) fs
-        in transpose (U.length qs) $ V.map calc prefactors
-
-
-transpose :: Int -> V.Vector (U.Vector Double) -> V.Vector (U.Vector Double)
-transpose !as_length !vs = -- as_length should be equal to U.length (V.head vs)
-    V.generate as_length $ \i -> G.unstream $ G.stream $ V.map (U.! i) vs
+        in M.fromVectorT $ V.map calc prefactors
 
 
 
@@ -313,19 +308,19 @@ del_cost_w :: TrainingVectors -> DirichletMixture -> Matrix
 del_cost_w ns dm =
     let ns_sums = G.unstream $ G.stream $ V.map U.sum ns
         as_sums = dmap U.sum dm
-        tns     = transpose (dmComponents dm) ns
+        tns     = M.fromVectorT ns
     in del_cost_w_worker (ns, tns, ns_sums) dm as_sums
 
 
 -- | Worker function of 'del_cost_w'.
-del_cost_w_worker :: (TrainingVectors, V.Vector (U.Vector Double), U.Vector Double)
+del_cost_w_worker :: (TrainingVectors, Matrix, U.Vector Double)
                   -> DirichletMixture -> U.Vector Double -> Matrix
 del_cost_w_worker (!ns, !tns, !ns_sums) dm !as_sums =
     let -- Calculate Prob(a | n, theta)
         !probs_a_n   = prob_a_n_theta ns dm
 
         -- Calculate all S_j's.
-        !sjs         = G.unstream $ G.stream $ V.map U.sum probs_a_n
+        !sjs         = M.rowmap U.sum probs_a_n
 
         -- @calc j _ _ i _ _@ calculates the derivative of the
         -- cost function with respect to @w_{i,j}@.  The other
@@ -337,14 +332,13 @@ del_cost_w_worker (!ns, !tns, !ns_sums) dm !as_sums =
               !sum_prob_psi = U.sum $ U.zipWith (*) probs $
                               U.map (psi . (+) a_sum) ns_sums
           -----
-          in \p_i a_i ->
+          in \a_i ->
             let !s1 = (sjs U.! j) * (psi_a_sum - psi a_i)
-                !s2 = U.sum $ U.map (\n_i -> p_i * psi (n_i + a_i)) tn_j
+                !s2 = U.sum $ U.zipWith (\p_i n_i -> p_i * psi (n_i + a_i)) probs tn_j
             in a_i * (s1 + s2 - sum_prob_psi)
 
-    in M.fromVector (M.size $ dmDensities dm) $
-       V.izipWith (\j p_j tn_j -> let !f = calc j p_j tn_j
-                                  in U.zipWith f p_j (dm !!! j))
+    in M.rzipWith (\j p_j tn_j -> let !f = calc j p_j tn_j
+                                  in U.map f (dm !!! j))
                   probs_a_n tns
 
 
@@ -364,7 +358,7 @@ del_cost_w_worker (!ns, !tns, !ns_sums) dm !as_sums =
 -- verified.
 derive :: DirichletMixture -> Predicate -> StepSize
          -> TrainingVectors -> Result DirichletMixture
-derive idm@(DM initial_qs initial_as)
+derive (DM initial_qs initial_as)
        (Pred maxIter' minDelta_ deltaSteps' maxWeightIter' jumpDelta_)
        (Step step) ns
     | V.length ns == 0          = err "empty training data"
@@ -380,7 +374,6 @@ derive idm@(DM initial_qs initial_as)
     | otherwise                 = train
     where
       err = error . ("Dirichlet.derive: " ++)
-      !components = dmComponents idm
 
       -- Compensate the different deltaSteps.
       !minDelta'    = minDelta_  * fromIntegral deltaSteps'
@@ -391,13 +384,13 @@ derive idm@(DM initial_qs initial_as)
       !ns_sums = G.unstream $ G.stream $ V.map U.sum ns
 
       -- Transposed training sequences.
-      !tns = transpose components ns
+      !tns = M.fromVectorT ns
 
       -- Reciprocal of the number of training sequences.
       !recip_m = recip $ fromIntegral $ V.length ns
 
       -- Functions that work on the alphas only (and not their logs).
-      calc_as_sums = M.rowMap U.sum
+      calc_as_sums = M.rowmap U.sum
 
       -- Start training in the zero-th iteration and with
       -- infinite inital cost.
@@ -440,7 +433,7 @@ derive idm@(DM initial_qs initial_as)
                \again !itersLeft !oldCost !qs ->
           -- Reestimate weight's.
           let !probs_a_n = probs_a_n_mk qs
-              qs' = G.unstream $ G.stream $ V.map ((*) recip_m . U.sum) probs_a_n
+              qs' = M.rowmap ((*) recip_m . U.sum) probs_a_n
 
           -- Recalculate constants.
               !calcCost = itersLeft `mod` deltaSteps' == 0
