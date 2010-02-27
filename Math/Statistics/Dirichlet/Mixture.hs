@@ -165,9 +165,9 @@ prob_a_n_theta ns (DM qs as) =
 -- | Customized version of @prob_a_n_theta@ used when the weights
 -- are being estimated.  Precomputes everything that doesn't
 -- depend on the weight.
-prob_a_n_theta_w :: TrainingVectors -> V.Vector DirichletDensity
-                 -> (U.Vector Double -> V.Vector (U.Vector Double))
-prob_a_n_theta_w ns as =
+prob_a_n_theta_weights :: TrainingVectors -> V.Vector DirichletDensity
+                       -> (U.Vector Double -> V.Vector (U.Vector Double))
+prob_a_n_theta_weights ns as =
     let -- Precalculate logBeta of all components
         !logBetaAlphas   = G.unstream $ G.stream $ V.map (logBeta . unDD) as
 
@@ -199,13 +199,14 @@ cost :: TrainingVectors -> DirichletMixture -> Double
 cost ns dm@(DM _ as) =
     let ns_sums    = G.unstream $ G.stream $ V.map U.sum ns
         as_sums    = G.unstream $ G.stream $ V.map (U.sum . unDD) as
-    in costWorker (ns, ns_sums) dm as_sums
+    in cost_worker (ns, ns_sums) dm as_sums
 
 
 -- | Worker of 'cost' function that avoids repeating some
 -- computations that are done in when reestimating alphas.
-costWorker :: (TrainingVectors, U.Vector Double) -> DirichletMixture -> U.Vector Double -> Double
-costWorker (!ns, !ns_sums) (DM !qs !as) !as_sums =
+cost_worker :: (TrainingVectors, U.Vector Double) -> DirichletMixture
+            -> U.Vector Double -> Double
+cost_worker (!ns, !ns_sums) (DM !qs !as) !as_sums =
     let -- From the equation (54).
         prob_n_a !n !n_sum !a !a_sum !lngamma_a_sum =
             let !s = lngamma (n_sum+1) + lngamma_a_sum - lngamma (n_sum+a_sum)
@@ -223,9 +224,9 @@ costWorker (!ns, !ns_sums) (DM !qs !as) !as_sums =
 
 -- | Version of 'cost' function that avoids repeating a lot of
 -- computations that are done when reestimating weights.
-costWeight :: (TrainingVectors, U.Vector Double) -> V.Vector DirichletDensity
-           -> U.Vector Double -> (U.Vector Double -> Double)
-costWeight (!ns, !ns_sums) !as !as_sums =
+cost_weight :: (TrainingVectors, U.Vector Double) -> V.Vector DirichletDensity
+            -> U.Vector Double -> (U.Vector Double -> Double)
+cost_weight (!ns, !ns_sums) !as !as_sums =
     let -- From the equation (54).
         prob_n_a !n !n_sum !a !a_sum !lngamma_a_sum =
             let !s = lngamma (n_sum+1) + lngamma_a_sum - lngamma (n_sum+a_sum)
@@ -319,7 +320,7 @@ derive (DM initial_qs initial_as)
             !as_sums' = calc_as_sums as'
             !calcCost = iter `mod` deltaSteps' == 0
             !cost'    = if calcCost then newCost else oldCost
-             where newCost = costWorker (ns, ns_sums) (DM qs as') as_sums'
+             where newCost = cost_worker (ns, ns_sums) (DM qs as') as_sums'
             !delta    = abs (cost' - oldCost)
 
         -- Verify convergence.  Even with MaxIter we only stop
@@ -335,8 +336,8 @@ derive (DM initial_qs initial_as)
       trainWeights !oldIter !veryOldCost !oldQs !ws !as !as_sums =
         {-# SCC "trainWeights" #-}
         -- Prepare invariant parts.
-        let !probs_a_n_mk = prob_a_n_theta_w ns as
-            !cost_mk      = costWeight (ns, ns_sums) as as_sums
+        let !probs_a_n_mk = prob_a_n_theta_weights ns as
+            !cost_mk      = cost_weight (ns, ns_sums) as as_sums
         in ($ oldQs) . ($ veryOldCost) . ($ maxWeightIter') . fix $
                \again !itersLeft !oldCost !qs ->
           -- Reestimate weight's.
