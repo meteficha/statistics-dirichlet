@@ -176,12 +176,17 @@ indices m i = i `divMod` mCols m
 
 transpose :: Matrix -> Matrix
 transpose m =
-    let f i = let (r,c) = indices n i
+    let f i = let (r,c) = i `divMod` mRows m
               in m ! (c,r)
-        n = M {mRows = mCols m
-              ,mCols = mRows m
-              ,mData = U.generate (mRows m * mCols m) f}
-    in n
+    in M {mRows = mCols m
+         ,mCols = mRows m
+         ,mData = U.generate (mRows m * mCols m) f}
+
+{-# RULES
+  "transpose/transpose"   forall m.   transpose (transpose m) = m;
+  "transpose/fromVector"  forall v s. transpose (fromVector s v) = fromVectorT s v;
+  "transpose/fromVectorT" forall v s. transpose (fromVectorT s v) = fromVector s v;
+  #-}
 
 
 
