@@ -19,7 +19,8 @@ module Math.Statistics.Dirichlet.Mixture
     ,fromDD
     -- * Functions
     ,derive
-    ,cost)
+    ,cost
+    ,del_cost_w)
     where
 
 import qualified Data.Vector as V
@@ -126,6 +127,13 @@ fromDD = DM (U.singleton 1) . V.singleton
 
 
 
+
+
+
+
+
+
+
 -- | /Prob(a_j | n, theta)/ Defined in equation (16), "the
 -- posterior probability of the j-th component of the mixture
 -- given the vector of counts n".  We return the probabilities
@@ -192,6 +200,16 @@ transpose !as_length !vs =
     V.generate as_length $ \i -> G.unstream $ G.stream $ V.map (U.! i) vs
 
 
+
+
+
+
+
+
+
+
+
+
 -- | Cost function for deriving a Dirichlet mixture (equation
 -- 18).  This function is minimized by 'derive'.  Calculated
 -- using (17) and (54).
@@ -246,6 +264,61 @@ cost_weight (!ns, !ns_sums) !as !as_sums =
         final qs = log . U.sum . U.zipWith (*) qs
     in \(!qs) -> negate $ V.sum $ V.map (final qs) prepared
 
+
+
+
+
+
+
+-- | Derivative of the cost function with respect @w_{i,j}@,
+-- defined by Equation (22).
+del_cost_w :: TrainingVectors -> DirichletMixture -> V.Vector (U.Vector Double)
+del_cost_w ns dm@(DM _ as) =
+    let ns_sums    = G.unstream $ G.stream $ V.map U.sum ns
+        as_sums    = G.unstream $ G.stream $ V.map (U.sum . unDD) as
+    in del_cost_w_worker (ns, ns_sums) dm as_sums
+
+
+-- | Worker function of 'del_cost_w'.
+del_cost_w_worker :: (TrainingVectors, U.Vector Double) -> DirichletMixture
+                  -> U.Vector Double -> V.Vector (U.Vector Double)
+del_cost_w_worker (!ns, !ns_sums) dm@(DM _ !as) !as_sums =
+    let -- Calculate Prob(a | n, theta)
+        !probs_a_n   = prob_a_n_theta ns dm
+
+        -- Calculate all S_j's.
+        !sjs         = G.unstream $ G.stream $ V.map U.sum probs_a_n
+
+        -- @calc j _ i _ _@ calculates the derivative of the cost
+        -- function with respect to @w_{i,j}@.  The other
+        -- arguments come from arrays that we @zipWith@ below.
+        calc !j !probs =
+          -- Everything that doesn't depend on i, just on j.
+          let !a_sum        = as_sums U.! j
+              !psi_a_sum    = psi a_sum
+              !sum_prob_psi = U.sum $ U.zipWith (*) probs $
+                              U.map (psi . (+) a_sum) ns_sums
+          -----
+          in \(!i) !p_i !a_i ->
+            let !s1 = (sjs U.! j) * (psi_a_sum - psi a_i)
+                !s2 = V.sum $ V.map f ns
+                f n = p_i * psi (n U.! i + a_i)
+            in a_i * (s1 + s2 - sum_prob_psi)
+
+    in V.izipWith (\j p (DD a) -> let !f = calc j p
+                                  in U.izipWith f p a) probs_a_n as
+
+
+
+
+
+
+
+
+
+
+
+
 -- | Derive a Dirichlet mixture using a maximum likelihood method
 -- as described by Karplus et al (equation 25).  All training
 -- vectors should have the same length, however this is not
@@ -293,27 +366,9 @@ derive (DM initial_qs initial_as)
 
       trainAlphas !iter !oldCost !qs !ws !as !as_sums =
         {-# SCC "trainAlphas" #-}
-        -- Calculate Prob(a | n, theta)
-        let !probs_a_n   = prob_a_n_theta ns (DM qs as)
-
-        -- Calculate all S_j's.
-            !sjs         = G.unstream $ G.stream $ V.map U.sum probs_a_n
-
-        -- Reestimate alpha's.
-            calc_ws !j =
-              -- Everything that doesn't depend on i, just on j.
-              let a_sum        = as_sums U.! j
-                  psi_a_sum    = psi a_sum
-                  probs        = probs_a_n V.! j
-                  sum_prob_psi = U.sum $ U.zipWith (*) probs $
-                                 U.map (psi . (+) a_sum) ns_sums
-              -----
-              in \(!i) !w_i !a_i ->
-                let !s1 = (sjs U.! j) * (psi_a_sum - psi a_i)
-                    !s2 = V.sum $ V.map f ns
-                    f n = (probs U.! i) * psi (n U.! i + a_i)
-                in w_i + step * a_i * (s1 + s2 - sum_prob_psi)
-            !ws' = V.izipWith (\j w (DD a) -> U.izipWith (calc_ws j) w a) ws as
+        -- Calculate derivative, follow in steepest descent.
+        let derivative = del_cost_w_worker (ns, ns_sums) (DM qs as) as_sums
+            !ws' = V.zipWith (U.zipWith ((+) . (step *))) derivative ws
             !as' = V.map (DD . U.map exp) ws'
 
         -- Recalculate constants.
