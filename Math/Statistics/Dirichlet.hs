@@ -49,8 +49,8 @@ import Math.Statistics.Dirichlet.Options
 -- is applied.
 apply :: (DirichletDensity -> a) -> (DirichletMixture -> a)
       -> DirichletMixture -> a
-apply fd fm dm@(DM _ _ as)
-      | M.dmComponents dm == 1 = fd (DD as)
+apply fd fm dm
+      | M.dmComponents dm == 1 = fd $ head $ M.dmDensitiesL dm
       | otherwise              = fm dm
 
 

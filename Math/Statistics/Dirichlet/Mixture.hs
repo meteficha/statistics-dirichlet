@@ -13,6 +13,7 @@ module Math.Statistics.Dirichlet.Mixture
     (-- * Data types
      DirichletMixture(..)
     ,dmComponents
+    ,dmParameters
     ,dmDensitiesL
     ,(!!!)
     ,empty
@@ -28,7 +29,6 @@ module Math.Statistics.Dirichlet.Mixture
 
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
-import qualified Data.Vector.Fusion.Stream as S
 import qualified Data.Vector.Unboxed as U
 
 import Control.Parallel.Strategies (NFData(..), rwhnf)
@@ -37,7 +37,9 @@ import Numeric.GSL.Special.Gamma (lngamma)
 import Numeric.GSL.Special.Psi (psi)
 
 import qualified Math.Statistics.Dirichlet.Density as D
+import qualified Math.Statistics.Dirichlet.Matrix as M
 import Math.Statistics.Dirichlet.Density (DirichletDensity(..))
+import Math.Statistics.Dirichlet.Matrix (Matrix (..))
 import Math.Statistics.Dirichlet.Options
 import Math.Statistics.Dirichlet.Util
 
@@ -45,13 +47,11 @@ import Math.Statistics.Dirichlet.Util
 
 -- | A Dirichlet mixture.
 data DirichletMixture =
-    DM {dmParameters :: {-# UNPACK #-} !Int
-        -- ^ Number of parameters each density has.
-       ,dmWeights    :: {-# UNPACK #-} !(U.Vector Double)
+    DM {dmWeights    :: {-# UNPACK #-} !(U.Vector Double)
         -- ^ Weights of each density.
-       ,dmDensities  :: {-# UNPACK #-} !(U.Vector Double)
+       ,dmDensities  :: {-# UNPACK #-} !M.Matrix
         -- ^ Values of all parameters of all densities.  This
-        -- vector has @dmParameters * length dmWeights@ values.
+        -- matrix has @length dmWeights@ rows.
        } deriving (Eq)
 
 instance Show DirichletMixture where
@@ -76,34 +76,26 @@ instance NFData DirichletMixture where
 dmComponents :: DirichletMixture -> Int
 dmComponents = U.length . dmWeights
 
+-- | Number of parameters each component has.
+dmParameters :: DirichletMixture -> Int
+dmParameters = M.mCols . dmDensities
+
 -- | Separated list of densities.
 dmDensitiesL :: DirichletMixture -> [DirichletDensity]
-dmDensitiesL (DM n _ as) =
-    let l = U.length as
-    in [DD (U.unsafeSlice i n as) | i <- [0,n..l-1]]
+dmDensitiesL (DM _ as) = map DD $ M.rows as
 
 -- | @dm !!! i@ is the @i@-th density.  No bounding checks are
 -- made.
 (!!!) :: DirichletMixture -> Int -> U.Vector Double
-(DM n _ as) !!! i = get n as i
+(DM _ as) !!! i = as M.!!! i
 {-# INLINE (!!!) #-}
 
 
 
 
 
-get :: Int -> U.Vector Double -> Int -> U.Vector Double
-get n as i = U.unsafeSlice (i*n) n as
-{-# INLINE get #-}
-
 dmap :: (U.Vector Double -> Double) -> DirichletMixture -> U.Vector Double
-dmap f dm = dmap' f (dmComponents dm) (dmParameters dm) (dmDensities dm)
-
-dmap' :: (U.Vector Double -> Double) -> Int -> Int -> U.Vector Double -> U.Vector Double
-dmap' f components parameters as = U.generate components (f . get parameters as)
-
-
-
+dmap f = M.rowMap f . dmDensities
 
 
 
@@ -115,9 +107,8 @@ empty :: Int -> Int -> Double -> DirichletMixture
 empty q n x = let (DD d) = D.empty n x
                   f i    = fromIntegral (q-i) / sum_
                   sum_   = fromIntegral (q*(q+1)`div`2)
-              in DM {dmParameters = n
-                    ,dmWeights    = U.generate q f
-                    ,dmDensities  = U.generate (q*n) ((d U.!) . (`mod` n))}
+              in DM {dmWeights    = U.generate q f
+                    ,dmDensities  = M.replicateRows q d}
 {-# INLINE empty #-}
 
 
@@ -134,8 +125,8 @@ type Component = (Double, [Double])
 fromList :: [Component] -> DirichletMixture
 fromList components =
   let -- Vectors
-      qs = U.fromList $       map fst components
-      as = U.fromList $ concatMap snd components
+      qs =         U.fromList $       map fst components
+      as = M q n $ U.fromList $ concatMap snd components
 
       -- Properties of the mixture
       q  = length components
@@ -154,21 +145,21 @@ fromList components =
        (_,_,False,_,_) -> e "all weights must be greater than or equal to zero"
        (_,_,_,False,_) -> e "every component must have the same size"
        (_,_,_,_,False) -> e "all alphas must be greater than or equal to zero"
-       _               -> DM n qs as
+       _               -> DM qs as
 
 -- | @toList dm@ is the inverse of @fromList@, constructs a list
 -- of components from a Dirichlet mixture.  There are no error
 -- conditions and @toList . fromList == id@.
 toList :: DirichletMixture -> [Component]
-toList dm@(DM _ qs _) =
+toList (DM qs as) =
     let qs' = U.toList qs
-        as' = map (U.toList . unDD) $ dmDensitiesL dm
+        as' = map U.toList $ M.rows as
     in zip qs' as'
 
 -- | Constructs a Dirichlet mixture of one component from a
 -- Dirichlet density.
 fromDD :: DirichletDensity -> DirichletMixture
-fromDD (DD d) = DM (U.length d) (U.singleton 1) d
+fromDD (DD d) = DM (U.singleton 1) (M.replicateRows 1 d)
 
 
 
@@ -201,7 +192,7 @@ fromDD (DD d) = DM (U.length d) (U.singleton 1) d
 -- the logarithm before appling the exponential function.  This
 -- is really essencial.
 prob_a_n_theta :: TrainingVectors -> DirichletMixture -> V.Vector (U.Vector Double)
-prob_a_n_theta ns dm@(DM _ qs _) =
+prob_a_n_theta ns dm@(DM qs _) =
     let -- Precalculate logBeta of all components
         !logBetaAlphas = dmap logBeta dm
 
@@ -219,25 +210,25 @@ prob_a_n_theta ns dm@(DM _ qs _) =
 -- | Customized version of @prob_a_n_theta@ used when the weights
 -- are being estimated.  Precomputes everything that doesn't
 -- depend on the weight.
-prob_a_n_theta_weights :: TrainingVectors -> Int -> Int -> U.Vector Double
+prob_a_n_theta_weights :: TrainingVectors -> Matrix
                        -> (U.Vector Double -> V.Vector (U.Vector Double))
-prob_a_n_theta_weights ns components parameters as =
+prob_a_n_theta_weights ns as =
     let -- Precalculate logBeta of all components
-        !logBetaAlphas   = dmap' logBeta components parameters as
+        !logBetaAlphas   = M.rowMap logBeta as
 
         -- Precalculate the factors for one of the training vectors.
-        precalc n i lb_a = let !a = get parameters as i
+        precalc n i lb_a = let !a = as M.!!! i
                            in logBeta (U.zipWith (+) n a) - lb_a
         norm fs          = let !c = U.maximum fs
                            in U.map (exp . subtract c) fs
-        !prefactors      = V.map (\n -> norm $ U.imap (precalc n) logBetaAlphas) ns
+        !prefactors      = V.map (norm . flip U.imap logBetaAlphas . precalc) ns
 
     in \qs ->
         let -- Calculate the final factors.
             calc pfs = let fs = U.zipWith (*) pfs qs
                            total = U.sum fs
                        in U.map (/ total) fs
-        in transpose components $ V.map calc prefactors
+        in transpose (U.length qs) $ V.map calc prefactors
 
 
 transpose :: Int -> V.Vector (U.Vector Double) -> V.Vector (U.Vector Double)
@@ -269,7 +260,7 @@ cost ns dm =
 -- computations that are done when reestimating alphas.
 cost_worker :: (TrainingVectors, U.Vector Double) -> DirichletMixture
             -> U.Vector Double -> Double
-cost_worker (!ns, !ns_sums) dm@(DM _ !qs _) !as_sums =
+cost_worker (!ns, !ns_sums) dm@(DM !qs _) !as_sums =
     let -- From the equation (54).
         prob_n_a !n !n_sum !a !a_sum !lngamma_a_sum =
             let !s = lngamma (n_sum+1) + lngamma_a_sum - lngamma (n_sum+a_sum)
@@ -287,9 +278,9 @@ cost_worker (!ns, !ns_sums) dm@(DM _ !qs _) !as_sums =
 
 -- | Version of 'cost' function that avoids repeating a lot of
 -- computations that are done when reestimating weights.
-cost_weight :: (TrainingVectors, U.Vector Double) -> Int -> U.Vector Double
+cost_weight :: (TrainingVectors, U.Vector Double) -> Matrix
             -> U.Vector Double -> (U.Vector Double -> Double)
-cost_weight (!ns, !ns_sums) !parameters !as !as_sums =
+cost_weight (!ns, !ns_sums) !as !as_sums =
     let -- From the equation (54).
         prob_n_a !n !n_sum !a !a_sum !lngamma_a_sum =
             let !s = lngamma (n_sum+1) + lngamma_a_sum - lngamma (n_sum+a_sum)
@@ -300,7 +291,7 @@ cost_weight (!ns, !ns_sums) !parameters !as !as_sums =
         prepare_prob_n_theta i n =
             let !n_sum = ns_sums U.! i
             in {- U.sum $ U.zipWith (*) qs $ -}
-               U.izipWith (prob_n_a n n_sum . get parameters as)
+               U.izipWith (prob_n_a n n_sum . (as M.!!!))
                   as_sums lngamma_as_sums
         !lngamma_as_sums = U.map lngamma as_sums
         !prepared = V.imap prepare_prob_n_theta ns
@@ -318,7 +309,7 @@ cost_weight (!ns, !ns_sums) !parameters !as !as_sums =
 -- | Derivative of the cost function with respect @w_{i,j}@,
 -- defined by Equation (22).  The result is given in the same
 -- size and order as the 'dmDensitites' vector.
-del_cost_w :: TrainingVectors -> DirichletMixture -> U.Vector Double
+del_cost_w :: TrainingVectors -> DirichletMixture -> Matrix
 del_cost_w ns dm =
     let ns_sums = G.unstream $ G.stream $ V.map U.sum ns
         as_sums = dmap U.sum dm
@@ -328,7 +319,7 @@ del_cost_w ns dm =
 
 -- | Worker function of 'del_cost_w'.
 del_cost_w_worker :: (TrainingVectors, V.Vector (U.Vector Double), U.Vector Double)
-                  -> DirichletMixture -> U.Vector Double -> U.Vector Double
+                  -> DirichletMixture -> U.Vector Double -> Matrix
 del_cost_w_worker (!ns, !tns, !ns_sums) dm !as_sums =
     let -- Calculate Prob(a | n, theta)
         !probs_a_n   = prob_a_n_theta ns dm
@@ -351,7 +342,7 @@ del_cost_w_worker (!ns, !tns, !ns_sums) dm !as_sums =
                 !s2 = U.sum $ U.map (\n_i -> p_i * psi (n_i + a_i)) tn_j
             in a_i * (s1 + s2 - sum_prob_psi)
 
-    in G.unstream $ S.concatMap G.stream $ G.stream $
+    in M.fromVector (M.size $ dmDensities dm) $
        V.izipWith (\j p_j tn_j -> let !f = calc j p_j tn_j
                                   in U.zipWith f p_j (dm !!! j))
                   probs_a_n tns
@@ -373,20 +364,20 @@ del_cost_w_worker (!ns, !tns, !ns_sums) dm !as_sums =
 -- verified.
 derive :: DirichletMixture -> Predicate -> StepSize
          -> TrainingVectors -> Result DirichletMixture
-derive idm@(DM parameters initial_qs initial_as)
+derive idm@(DM initial_qs initial_as)
        (Pred maxIter' minDelta_ deltaSteps' maxWeightIter' jumpDelta_)
        (Step step) ns
-    | V.length ns == 0        = err "empty training data"
-    | U.length initial_qs < 1 = err "empty initial weights vector"
-    | U.length initial_as < 1 = err "empty initial alphas vector"
-    | maxIter' < 1            = err "non-positive maxIter"
-    | minDelta_ < 0           = err "negative minDelta"
-    | jumpDelta_ < 0          = err "negative jumpDelta"
-    | jumpDelta_ < minDelta_  = err "minDelta greater than jumpDelta"
-    | deltaSteps' < 1         = err "non-positive deltaSteps"
-    | step <= 0               = err "non-positive step"
-    | step >= 1               = err "step greater than one"
-    | otherwise               = train
+    | V.length ns == 0          = err "empty training data"
+    | U.length initial_qs < 1   = err "empty initial weights vector"
+    | M.size initial_as < (1,1) = err "empty initial alphas vector"
+    | maxIter' < 1              = err "non-positive maxIter"
+    | minDelta_ < 0             = err "negative minDelta"
+    | jumpDelta_ < 0            = err "negative jumpDelta"
+    | jumpDelta_ < minDelta_    = err "minDelta greater than jumpDelta"
+    | deltaSteps' < 1           = err "non-positive deltaSteps"
+    | step <= 0                 = err "non-positive step"
+    | step >= 1                 = err "step greater than one"
+    | otherwise                 = train
     where
       err = error . ("Dirichlet.derive: " ++)
       !components = dmComponents idm
@@ -406,12 +397,12 @@ derive idm@(DM parameters initial_qs initial_as)
       !recip_m = recip $ fromIntegral $ V.length ns
 
       -- Functions that work on the alphas only (and not their logs).
-      calc_as_sums = dmap U.sum . DM parameters initial_qs
+      calc_as_sums = M.rowMap U.sum
 
       -- Start training in the zero-th iteration and with
       -- infinite inital cost.
       train =
-        let ws      = U.map log as
+        let ws      = M.map log as
             as      = initial_as
             as_sums = calc_as_sums as
         in trainAlphas 1 infinity initial_qs ws as as_sums
@@ -419,15 +410,15 @@ derive idm@(DM parameters initial_qs initial_as)
       trainAlphas !iter !oldCost !qs !ws !as !as_sums =
         {-# SCC "trainAlphas" #-}
         -- Calculate derivative, follow in steepest descent.
-        let derivative = del_cost_w_worker (ns, tns, ns_sums) (DM parameters qs as) as_sums
-            !ws' = U.zipWith ((+) . (step *)) derivative ws
-            !as' = U.map exp ws'
+        let derivative = del_cost_w_worker (ns, tns, ns_sums) (DM qs as) as_sums
+            !ws' = M.zipWith ((+) . (step *)) derivative ws
+            !as' = M.map exp ws'
 
         -- Recalculate constants.
             !as_sums' = calc_as_sums as'
             !calcCost = iter `mod` deltaSteps' == 0
             !cost'    = if calcCost then newCost else oldCost
-             where newCost = cost_worker (ns, ns_sums) (DM parameters qs as') as_sums'
+             where newCost = cost_worker (ns, ns_sums) (DM qs as') as_sums'
             !delta    = abs (cost' - oldCost)
 
         -- Verify convergence.  Even with MaxIter we only stop
@@ -435,16 +426,16 @@ derive idm@(DM parameters initial_qs initial_as)
         -- wouldn't be able to tell the caller why the delta was
         -- still big when we reached the limit.
         in case (calcCost, delta <= minDelta', iter >= maxIter', delta <= jumpDelta') of
-             (True,True,_,_) -> Result Delta   iter delta cost' $ DM parameters qs as'
-             (True,_,True,_) -> Result MaxIter iter delta cost' $ DM parameters qs as'
+             (True,True,_,_) -> Result Delta   iter delta cost' $ DM qs as'
+             (True,_,True,_) -> Result MaxIter iter delta cost' $ DM qs as'
              (True,_,_,True) -> trainWeights (iter+1) cost' qs ws' as' as_sums'
              _               -> trainAlphas  (iter+1) cost' qs ws' as' as_sums'
 
       trainWeights !oldIter !veryOldCost !oldQs !ws !as !as_sums =
         {-# SCC "trainWeights" #-}
         -- Prepare invariant parts.
-        let !probs_a_n_mk = prob_a_n_theta_weights ns components parameters as
-            !cost_mk      = cost_weight (ns, ns_sums) parameters as as_sums
+        let !probs_a_n_mk = prob_a_n_theta_weights ns as
+            !cost_mk      = cost_weight (ns, ns_sums) as as_sums
         in ($ oldQs) . ($ veryOldCost) . ($ maxWeightIter') . fix $
                \again !itersLeft !oldCost !qs ->
           -- Reestimate weight's.
