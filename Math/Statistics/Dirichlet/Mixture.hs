@@ -32,9 +32,12 @@ import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
 
 import Control.Parallel.Strategies (NFData(..), rwhnf)
+import Control.Monad.ST
 import Data.Function (fix)
 import Numeric.GSL.Special.Gamma (lngamma)
 import Numeric.GSL.Special.Psi (psi)
+
+import qualified Numeric.Optimization.Algorithms.HagerZhang05 as CG
 
 import qualified Math.Statistics.Dirichlet.Density as D
 import qualified Math.Statistics.Dirichlet.Matrix as M
@@ -346,7 +349,9 @@ del_cost_w_worker (!ns, !tns, !ns_sums) dm !as_sums =
 
 
 -- | Derive a Dirichlet mixture using a maximum likelihood method
--- as described by Karplus et al (equation 25).  All training
+-- as described by Karplus et al (equation 25) using CG_DESCENT
+-- method by Hager and Zhang (see
+-- "Numeric.Optimization.Algorithms.HagerZhang05").  All training
 -- vectors should have the same length, however this is not
 -- verified.
 derive :: DirichletMixture -> Predicate -> StepSize
@@ -364,7 +369,7 @@ derive (DM initial_qs initial_as)
     | deltaSteps' < 1           = err "non-positive deltaSteps"
     | step <= 0                 = err "non-positive step"
     | step >= 1                 = err "step greater than one"
-    | otherwise                 = train
+    | otherwise                 = runST train
     where
       err = error . ("Dirichlet.derive: " ++)
 
@@ -385,37 +390,63 @@ derive (DM initial_qs initial_as)
       -- Functions that work on the alphas only (and not their logs).
       calc_as_sums = M.rowmap U.sum
 
-      -- Start training in the zero-th iteration and with
+      -- Parameters used by CG_DESCENT.
+      parameters = CG.defaultParameters
+                     {CG.printFinal  = True
+                     ,CG.printParams = True
+                     ,CG.verbose     = CG.VeryVerbose
+                     ,CG.maxItersFac = max 1 $ fromIntegral maxIter' / 20}
+
+      -- Transform a U.Vector from/to a M.Matrix in the case that
+      -- the matrix has the same shape as initial_as (i.e. all
+      -- as's and ws's).
+      fromMatrix = M.mData
+      toMatrix v = initial_as {M.mData = v}
+
+      -- Create specialized functions that are optimized by
+      -- CG_DESCENT.  They depend only on @qs@, the weights.
+      createFunctions !qs =
+        let calc f = \ws -> let !as      = M.map exp (toMatrix ws)
+                                !as_sums = calc_as_sums as
+                                dm       = DM qs as
+                            in f dm as_sums
+            grad_worker = ((fromMatrix .) .) . del_cost_w_worker
+            func = CG.VFunction $ calc $ cost_worker (ns, ns_sums)
+            grad = CG.VGradient $ calc $ grad_worker (ns, tns, ns_sums)
+            comb = CG.VCombined $ calc $ \dm as_sums ->
+                     (cost_worker (ns, ns_sums) dm as_sums
+                     ,grad_worker (ns, tns, ns_sums) dm as_sums)
+        in (func, grad, comb)
+
+      -- Start training in the one-th iteration and with
       -- infinite inital cost.
-      train =
-        let ws      = M.map log as
-            as      = initial_as
-            as_sums = calc_as_sums as
-        in trainAlphas 1 infinity initial_qs ws as as_sums
+      train = trainAlphas 1 infinity initial_qs (M.map log initial_as)
 
-      trainAlphas !iter !oldCost !qs !ws !as !as_sums =
-        {-# SCC "trainAlphas" #-}
-        -- Calculate derivative, follow in steepest descent.
-        let derivative = del_cost_w_worker (ns, tns, ns_sums) (DM qs as) as_sums
-            !ws' = M.zipWith ((+) . (step *)) derivative ws
-            !as' = M.map exp ws'
+      trainAlphas !iter !oldCost !qs !ws = {-# SCC "trainAlphas" #-} do
+        -- Optimize using CG_DESCENT
+        let (func, grad, comb) = createFunctions qs
+            opt = CG.optimize parameters minDelta' (fromMatrix ws)
+                              func grad (Just comb)
 
-        -- Recalculate constants.
+        (!pre_ws', _result, stats) <- unsafeIOToST opt
+        let !ws' = toMatrix (G.unstream $ G.stream pre_ws')
+
+        -- Recalculate everything.
+            !as'      = M.map exp ws'
             !as_sums' = calc_as_sums as'
-            !calcCost = iter `mod` deltaSteps' == 0
-            !cost'    = if calcCost then newCost else oldCost
-             where newCost = cost_worker (ns, ns_sums) (DM qs as') as_sums'
+            !iter'    = iter + fromIntegral (CG.totalIters stats)
+            !cost'    = CG.finalValue stats
             !delta    = abs (cost' - oldCost)
 
         -- Verify convergence.  Even with MaxIter we only stop
         -- iterating if the delta was calculated.  Otherwise we
         -- wouldn't be able to tell the caller why the delta was
         -- still big when we reached the limit.
-        in case (calcCost, delta <= minDelta', iter >= maxIter', delta <= jumpDelta') of
-             (True,True,_,_) -> Result Delta   iter delta cost' $ DM qs as'
-             (True,_,True,_) -> Result MaxIter iter delta cost' $ DM qs as'
-             (True,_,_,True) -> trainWeights (iter+1) cost' qs ws' as' as_sums'
-             _               -> trainAlphas  (iter+1) cost' qs ws' as' as_sums'
+        case (delta <= minDelta', iter >= maxIter', delta <= jumpDelta') of
+            (True,_,_) -> return $ Result Delta   iter delta cost' $ DM qs as'
+            (_,True,_) -> return $ Result MaxIter iter delta cost' $ DM qs as'
+            (_,_,True) -> trainWeights iter' cost' qs ws' as' as_sums'
+            _          -> trainAlphas  iter' cost' qs ws'
 
       trainWeights !oldIter !veryOldCost !oldQs !ws !as !as_sums =
         {-# SCC "trainWeights" #-}
@@ -436,7 +467,4 @@ derive (DM initial_qs initial_as)
         -- Verify convergence.  We never stop the process here.
         in case (calcCost && delta <= jumpDelta', itersLeft <= 0) of
              (False,False) -> again (itersLeft-1) cost' qs'
-             _             -> trainAlphas oldIter cost' qs' ws as as_sums
-
-
-
+             _             -> trainAlphas oldIter cost' qs' ws
