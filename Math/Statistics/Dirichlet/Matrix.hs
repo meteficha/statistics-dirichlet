@@ -184,9 +184,12 @@ izipWith f m = uzipWith (U.izipWith (f . indices m)) m
 rzipWith :: (Int -> U.Vector Double -> U.Vector Double -> U.Vector Double)
           -> Matrix -> Matrix -> Matrix
 rzipWith f m n
-    | mRows m /= mRows n = materror "rzipWithN" "mRows"
-    | mCols m /= mCols n = materror "rzipWithN" "mCols"
+    | rm /= rn = materror "rzipWithN" $ "mRows " ++ s
+    | cm /= cn = materror "rzipWithN" $ "mCols " ++ s
     | otherwise          = fromVector $ V.izipWith f (rows m) (rows n)
+    where rm = mRows m; cm = mCols m
+          rn = mRows n; cn = mCols n
+          s = show ((rm,cm),(rn,cn))
 
 
 indices :: Matrix -> Int -> (Int, Int)
