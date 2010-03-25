@@ -428,7 +428,7 @@ derive (DM initial_qs initial_as)
             opt = CG.optimize parameters minDelta' (fromMatrix ws)
                               func grad (Just comb)
 
-        (!pre_ws', _result, stats) <- unsafeIOToST opt
+        (!pre_ws', result, stats) <- unsafeIOToST opt
         let !ws' = toMatrix (G.unstream $ G.stream pre_ws')
 
         -- Recalculate everything.
@@ -442,11 +442,14 @@ derive (DM initial_qs initial_as)
         -- iterating if the delta was calculated.  Otherwise we
         -- wouldn't be able to tell the caller why the delta was
         -- still big when we reached the limit.
-        case (delta <= minDelta', iter >= maxIter', delta <= jumpDelta') of
-            (True,_,_) -> return $ Result Delta   iter delta cost' $ DM qs as'
-            (_,True,_) -> return $ Result MaxIter iter delta cost' $ DM qs as'
-            (_,_,True) -> trainWeights iter' cost' qs ws' as' as_sums'
-            _          -> trainAlphas  iter' cost' qs ws'
+        case (decide result
+             ,delta <= minDelta'
+             ,iter  >= maxIter') of
+            (Error,_,_)  -> error $ "Mixture.derive: CG_DESCENT returned " ++ show result
+            (Stop r,_,_) -> return $ Result r       iter delta cost' $ DM qs as'
+            (_,True,_)   -> return $ Result Delta   iter delta cost' $ DM qs as'
+            (_,_,True)   -> return $ Result MaxIter iter delta cost' $ DM qs as'
+            (GoOn,_,_)   -> trainWeights iter' cost' qs ws' as' as_sums'
 
       trainWeights !oldIter !veryOldCost !oldQs !ws !as !as_sums =
         {-# SCC "trainWeights" #-}
@@ -468,3 +471,24 @@ derive (DM initial_qs initial_as)
         in case (calcCost && delta <= jumpDelta', itersLeft <= 0) of
              (False,False) -> again (itersLeft-1) cost' qs'
              _             -> trainAlphas oldIter cost' qs' ws
+
+
+-- | Decide what we should do depending on the result of the
+-- CG_DESCENT routine.
+decide :: CG.Result -> Decision
+decide CG.ToleranceStatisfied      = GoOn
+decide CG.FunctionChange           = GoOn
+decide CG.MaxTotalIter             = GoOn
+decide CG.MaxSecantIter            = GoOn
+
+decide CG.FunctionValueNaN         = Stop Delta
+decide CG.LineSearchFailsInitial   = Stop Delta
+decide CG.LineSearchFailsBisection = Stop Delta
+decide CG.LineSearchFailsUpdate    = Stop Delta
+
+decide CG.StartFunctionValueNaN    = Error
+decide CG.NegativeSlope            = Error
+decide CG.NotDescent               = Error
+decide CG.DebugTol                 = Error
+
+data Decision = GoOn | Stop Reason | Error
