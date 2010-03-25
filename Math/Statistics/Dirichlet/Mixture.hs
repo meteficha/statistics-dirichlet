@@ -439,11 +439,11 @@ derive (DM initial_qs initial_as)
         -- still big when we reached the limit.
         case (decide result
              ,delta <= minDelta
-             ,iter  >= maxIter) of
+             ,iter' >= maxIter) of
             (Error,_,_)  -> error $ "Mixture.derive: CG_DESCENT returned " ++ show result
-            (Stop r,_,_) -> return $ Result r       iter delta cost' $ DM qs as'
-            (_,True,_)   -> return $ Result Delta   iter delta cost' $ DM qs as'
-            (_,_,True)   -> return $ Result MaxIter iter delta cost' $ DM qs as'
+            (Stop r,_,_) -> return $ Result r       iter' delta cost' $ DM qs as'
+            (_,True,_)   -> return $ Result Delta   iter' delta cost' $ DM qs as'
+            (_,_,True)   -> return $ Result MaxIter iter' delta cost' $ DM qs as'
             (GoOn,_,_)   -> trainWeights iter' cost' qs ws' as' as_sums'
 
       trainWeights !oldIter !veryOldCost !oldQs !ws !as !as_sums =
