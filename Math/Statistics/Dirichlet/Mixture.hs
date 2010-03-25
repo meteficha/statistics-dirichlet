@@ -357,7 +357,7 @@ del_cost_w_worker (!ns, !tns, !ns_sums) dm !as_sums =
 derive :: DirichletMixture -> Predicate -> StepSize
          -> TrainingVectors -> Result DirichletMixture
 derive (DM initial_qs initial_as)
-       (Pred maxIter' minDelta_ deltaSteps' maxWeightIter' jumpDelta_)
+       (Pred maxIter' minDelta' _ maxWeightIter' jumpDelta')
        (Step step) ns
     | V.length ns == 0          = err "empty training data"
     | U.length initial_qs < 1   = err "empty initial weights vector"
@@ -366,16 +366,11 @@ derive (DM initial_qs initial_as)
     | minDelta_ < 0             = err "negative minDelta"
     | jumpDelta_ < 0            = err "negative jumpDelta"
     | jumpDelta_ < minDelta_    = err "minDelta greater than jumpDelta"
-    | deltaSteps' < 1           = err "non-positive deltaSteps"
     | step <= 0                 = err "non-positive step"
     | step >= 1                 = err "step greater than one"
     | otherwise                 = runST train
     where
       err = error . ("Dirichlet.derive: " ++)
-
-      -- Compensate the different deltaSteps.
-      !minDelta'    = minDelta_  * fromIntegral deltaSteps'
-      !jumpDelta'   = jumpDelta_ * fromIntegral deltaSteps'
 
       -- Sums of each training sequence.
       ns_sums :: U.Vector Double
@@ -463,12 +458,11 @@ derive (DM initial_qs initial_as)
               qs' = M.rowmap ((*) recip_m . U.sum) probs_a_n
 
           -- Recalculate constants.
-              !calcCost = itersLeft `mod` deltaSteps' == 0
-              !cost'    = if calcCost then cost_mk qs' else oldCost
+              !cost'    = cost_mk qs'
               !delta    = abs (cost' - oldCost)
 
         -- Verify convergence.  We never stop the process here.
-        in case (calcCost && delta <= jumpDelta', itersLeft <= 0) of
+        in case (delta <= jumpDelta', itersLeft <= 0) of
              (False,False) -> again (itersLeft-1) cost' qs'
              _             -> trainAlphas oldIter cost' qs' ws
 
