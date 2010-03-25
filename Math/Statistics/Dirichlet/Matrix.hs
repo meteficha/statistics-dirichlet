@@ -34,6 +34,7 @@ module Math.Statistics.Dirichlet.Matrix
     ,map
     ,imap
     ,rowmap
+    ,irowmap
     ,uzipWith
     ,zipWith
     ,izipWith
@@ -157,6 +158,10 @@ imap f m = umap (U.imap (f . indices m)) m
 
 rowmap :: (U.Vector Double -> Double) -> Matrix -> U.Vector Double
 rowmap f m = U.generate (mRows m) (f . s)
+    where s i = U.unsafeSlice (i * mCols m) (mCols m) (mData m)
+
+irowmap :: (Int -> U.Vector Double -> Double) -> Matrix -> U.Vector Double
+irowmap f m = U.generate (mRows m) (\i -> f i $ s i)
     where s i = U.unsafeSlice (i * mCols m) (mCols m) (mData m)
 
 uzipWith :: (U.Vector Double -> U.Vector Double -> U.Vector Double)
