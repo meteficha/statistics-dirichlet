@@ -387,10 +387,13 @@ derive (DM initial_qs initial_as)
 
       -- Parameters used by CG_DESCENT.
       parameters = CG.defaultParameters
-                     {CG.printFinal  = True
-                     ,CG.printParams = True
-                     ,CG.verbose     = CG.VeryVerbose
-                     ,CG.maxItersFac = max 1 $ fromIntegral maxIter / 20}
+                     {CG.printFinal    = True
+                     ,CG.printParams   = True
+                     ,CG.verbose       = CG.VeryVerbose
+                     ,CG.maxItersFac   = max 1 $ fromIntegral maxIter / 20
+                     ,CG.estimateError = CG.RelativeEpsilon (1e-6 * s)}
+        where (w,h) = M.size initial_as
+              s = fromIntegral (w * h * V.length ns)
 
       -- Transform a U.Vector from/to a M.Matrix in the case that
       -- the matrix has the same shape as initial_as (i.e. all
