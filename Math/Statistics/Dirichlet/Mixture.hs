@@ -413,9 +413,9 @@ derive (DM initial_qs initial_as)
                      ,grad_worker (ns, tns, ns_sums) dm as_sums)
         in (func, grad, comb)
 
-      -- Start training in the one-th iteration and with
+      -- Start training in the zero-th iteration and with
       -- infinite inital cost.
-      train = trainAlphas 1 infinity initial_qs (M.map log initial_as)
+      train = trainAlphas 0 infinity initial_qs (M.map log initial_as)
 
       trainAlphas !iter !oldCost !qs !ws = {-# SCC "trainAlphas" #-} do
         -- Optimize using CG_DESCENT
