@@ -371,6 +371,7 @@ derive (DM initial_qs initial_as)
     | otherwise                 = runST train
     where
       err = error . ("Dirichlet.derive: " ++)
+      singleDensity = U.length initial_qs == 1
 
       -- Sums of each training sequence.
       ns_sums :: U.Vector Double
@@ -442,12 +443,14 @@ derive (DM initial_qs initial_as)
         -- still big when we reached the limit.
         case (decide result
              ,delta <= minDelta
-             ,iter' >= maxIter) of
-            (Error,_,_)  -> error $ "Mixture.derive: CG_DESCENT returned " ++ show result
-            (Stop r,_,_) -> return $ Result r       iter' delta cost' $ DM qs as'
-            (_,True,_)   -> return $ Result Delta   iter' delta cost' $ DM qs as'
-            (_,_,True)   -> return $ Result MaxIter iter' delta cost' $ DM qs as'
-            (GoOn,_,_)   -> trainWeights iter' cost' qs ws' as' as_sums'
+             ,iter' >= maxIter
+             ,singleDensity) of
+            (Error,_,_,_)  -> error $ "Mixture.derive: CG_DESCENT returned " ++ show result
+            (Stop r,_,_,_) -> return $ Result r       iter' delta cost' $ DM qs as'
+            (_,True,_,_)   -> return $ Result Delta   iter' delta cost' $ DM qs as'
+            (_,_,True,_)   -> return $ Result MaxIter iter' delta cost' $ DM qs as'
+            (_,_,_,True)   -> return $ Result Delta   iter' delta cost' $ DM qs as'
+            (GoOn,_,_,_)   -> trainWeights iter' cost' qs ws' as' as_sums'
 
       trainWeights !oldIter !veryOldCost !oldQs !ws !as !as_sums =
         {-# SCC "trainWeights" #-}
