@@ -322,31 +322,24 @@ del_cost_w_worker (!ns, !tns, !ns_sums) dm !as_sums =
         -- Calculate all S_j's.
         !sjs         = M.rowmap U.sum probs_a_n
 
-        -- @calc j _ _ i _ _@ calculates the derivative of the
+        -- @calc j _ i _ _@ calculates the derivative of the
         -- cost function with respect to @w_{i,j}@.  The other
         -- arguments come from vector that we @zipWith@ below.
-        calc j probs tn_j =
+        calc j probs =
           -- Everything that doesn't depend on i, just on j.
           let !a_sum        = as_sums U.! j
               !psi_a_sum    = psi a_sum
               !sum_prob_psi = U.sum $ U.zipWith (*) probs $
                               U.map (psi . (+) a_sum) ns_sums
           -----
-          in \a_i ->
+          in \i a_i ->
             let !s1 = (sjs U.! j) * (psi_a_sum - psi a_i)
-                !s2 = U.sum $ U.zipWith (\p_i n_i -> p_i * psi (n_i + a_i)) probs tn_j
-            in a_i * (s1 + s2 - sum_prob_psi)
+                !s2 = U.sum $ U.zipWith (\p_i n_i -> p_i * psi (n_i + a_i)) probs (tns M.!!! i)
+            in - a_i * (s1 + s2 - sum_prob_psi)
 
-    in M.rzipWith (\j p_j tn_j -> let !f = calc j p_j tn_j
-                                  in U.map f (dm !!! j))
-                  probs_a_n tns
-
-
-
-
-
-
-
+    in M.fromVector $ V.imap (\j p_j -> let !f = calc j p_j
+                                        in U.imap f (dm !!! j))
+                             (M.rows probs_a_n)
 
 
 
