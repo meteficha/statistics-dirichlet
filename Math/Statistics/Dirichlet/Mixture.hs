@@ -357,15 +357,15 @@ del_cost_w_worker (!ns, !tns, !ns_sums) dm !as_sums =
 derive :: DirichletMixture -> Predicate -> StepSize
          -> TrainingVectors -> Result DirichletMixture
 derive (DM initial_qs initial_as)
-       (Pred maxIter' minDelta' _ maxWeightIter' jumpDelta')
+       (Pred maxIter minDelta _deltaSteps maxWeightIter jumpDelta)
        (Step step) ns
     | V.length ns == 0          = err "empty training data"
     | U.length initial_qs < 1   = err "empty initial weights vector"
     | M.size initial_as < (1,1) = err "empty initial alphas vector"
-    | maxIter' < 1              = err "non-positive maxIter"
-    | minDelta_ < 0             = err "negative minDelta"
-    | jumpDelta_ < 0            = err "negative jumpDelta"
-    | jumpDelta_ < minDelta_    = err "minDelta greater than jumpDelta"
+    | maxIter < 1               = err "non-positive maxIter"
+    | minDelta < 0              = err "negative minDelta"
+    | jumpDelta < 0             = err "negative jumpDelta"
+    | jumpDelta < minDelta      = err "minDelta greater than jumpDelta"
     | step <= 0                 = err "non-positive step"
     | step >= 1                 = err "step greater than one"
     | otherwise                 = runST train
@@ -390,7 +390,7 @@ derive (DM initial_qs initial_as)
                      {CG.printFinal  = True
                      ,CG.printParams = True
                      ,CG.verbose     = CG.VeryVerbose
-                     ,CG.maxItersFac = max 1 $ fromIntegral maxIter' / 20}
+                     ,CG.maxItersFac = max 1 $ fromIntegral maxIter / 20}
 
       -- Transform a U.Vector from/to a M.Matrix in the case that
       -- the matrix has the same shape as initial_as (i.e. all
@@ -420,7 +420,7 @@ derive (DM initial_qs initial_as)
       trainAlphas !iter !oldCost !qs !ws = {-# SCC "trainAlphas" #-} do
         -- Optimize using CG_DESCENT
         let (func, grad, comb) = createFunctions qs
-            opt = CG.optimize parameters minDelta' (fromMatrix ws)
+            opt = CG.optimize parameters minDelta (fromMatrix ws)
                               func grad (Just comb)
 
         (!pre_ws', result, stats) <- unsafeIOToST opt
@@ -438,8 +438,8 @@ derive (DM initial_qs initial_as)
         -- wouldn't be able to tell the caller why the delta was
         -- still big when we reached the limit.
         case (decide result
-             ,delta <= minDelta'
-             ,iter  >= maxIter') of
+             ,delta <= minDelta
+             ,iter  >= maxIter) of
             (Error,_,_)  -> error $ "Mixture.derive: CG_DESCENT returned " ++ show result
             (Stop r,_,_) -> return $ Result r       iter delta cost' $ DM qs as'
             (_,True,_)   -> return $ Result Delta   iter delta cost' $ DM qs as'
@@ -451,7 +451,7 @@ derive (DM initial_qs initial_as)
         -- Prepare invariant parts.
         let !probs_a_n_mk = prob_a_n_theta_weights ns as
             !cost_mk      = cost_weight (ns, ns_sums) as as_sums
-        in ($ oldQs) . ($ veryOldCost) . ($ maxWeightIter') . fix $
+        in ($ oldQs) . ($ veryOldCost) . ($ maxWeightIter) . fix $
                \again !itersLeft !oldCost !qs ->
           -- Reestimate weight's.
           let !probs_a_n = probs_a_n_mk qs
@@ -462,7 +462,7 @@ derive (DM initial_qs initial_as)
               !delta    = abs (cost' - oldCost)
 
         -- Verify convergence.  We never stop the process here.
-        in case (delta <= jumpDelta', itersLeft <= 0) of
+        in case (delta <= jumpDelta, itersLeft <= 0) of
              (False,False) -> again (itersLeft-1) cost' qs'
              _             -> trainAlphas oldIter cost' qs' ws
 
