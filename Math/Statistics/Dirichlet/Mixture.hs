@@ -387,10 +387,11 @@ derive (DM initial_qs initial_as)
       calc_as_sums = M.rowmap U.sum
 
       -- Parameters used by CG_DESCENT.
+      verbose = False
       parameters = CG.defaultParameters
-                     {CG.printFinal    = True
-                     ,CG.printParams   = True
-                     ,CG.verbose       = CG.VeryVerbose
+                     {CG.printFinal    = verbose
+                     ,CG.printParams   = verbose
+                     ,CG.verbose       = if verbose then CG.VeryVerbose else CG.Quiet
                      ,CG.maxItersFac   = max 1 $ fromIntegral maxIter / 20
                      ,CG.estimateError = CG.RelativeEpsilon (1e-6 * s)}
         where (w,h) = M.size initial_as
