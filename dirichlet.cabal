@@ -3,7 +3,7 @@ Build-Type:          Simple
 Tested-With:         GHC
 Category:            Math
 Name:                statistics-dirichlet
-Version:             0.4
+Version:             0.5
 Stability:           experimental
 License:             GPL
 License-File:        LICENSE
