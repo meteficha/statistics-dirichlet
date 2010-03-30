@@ -356,9 +356,7 @@ del_cost_w_worker (!ns, !tns, !ns_sums) dm !as_sums =
 -- verified.
 derive :: DirichletMixture -> Predicate -> StepSize
          -> TrainingVectors -> Result DirichletMixture
-derive (DM initial_qs initial_as)
-       (Pred maxIter minDelta _deltaSteps maxWeightIter jumpDelta)
-       (Step step) ns
+derive (DM initial_qs initial_as) (Pred {..}) (Step step) ns
     | V.length ns == 0          = err "empty training data"
     | U.length initial_qs < 1   = err "empty initial weights vector"
     | M.size initial_as < (1,1) = err "empty initial alphas vector"
