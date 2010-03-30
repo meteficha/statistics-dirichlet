@@ -446,7 +446,6 @@ derive (DM initial_qs initial_as)
              ,delta <= minDelta
              ,iter' >= maxIter
              ,singleDensity) of
-            (Error,_,_,_)  -> error $ "Mixture.derive: CG_DESCENT returned " ++ show result
             (Stop r,_,_,_) -> return $ Result r       iter' delta cost' $ DM qs as'
             (_,True,_,_)   -> return $ Result Delta   iter' delta cost' $ DM qs as'
             (_,_,True,_)   -> return $ Result MaxIter iter' delta cost' $ DM qs as'
@@ -477,19 +476,10 @@ derive (DM initial_qs initial_as)
 -- | Decide what we should do depending on the result of the
 -- CG_DESCENT routine.
 decide :: CG.Result -> Decision
-decide CG.ToleranceStatisfied      = GoOn
-decide CG.FunctionChange           = GoOn
-decide CG.MaxTotalIter             = GoOn
-decide CG.MaxSecantIter            = GoOn
+decide CG.ToleranceStatisfied = GoOn
+decide CG.FunctionChange      = GoOn
+decide CG.MaxTotalIter        = GoOn
+decide CG.MaxSecantIter       = GoOn
+decide other                  = Stop (CG other)
 
-decide CG.FunctionValueNaN         = Stop Delta
-decide CG.LineSearchFailsInitial   = Stop Delta
-decide CG.LineSearchFailsBisection = Stop Delta
-decide CG.LineSearchFailsUpdate    = Stop Delta
-
-decide CG.StartFunctionValueNaN    = Error
-decide CG.NegativeSlope            = Error
-decide CG.NotDescent               = Error
-decide CG.DebugTol                 = Error
-
-data Decision = GoOn | Stop Reason | Error
+data Decision = GoOn | Stop Reason

@@ -21,6 +21,7 @@ module Math.Statistics.Dirichlet.Options
 
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
+import qualified Numeric.Optimization.Algorithms.HagerZhang05 as CG
 import Control.Parallel.Strategies (NFData(..))
 
 -- | A vector used for deriving the parameters of a Dirichlet
@@ -64,14 +65,17 @@ data Predicate = Pred
                  deriving (Eq, Read, Show)
 
 -- | Reason why the derivation was over.
-data Reason = Delta    -- ^ The difference between applications
-                       -- of the cost function dropped below the
-                       -- minimum delta.  In other words, it
-                       -- coverged.
-            | MaxIter  -- ^ The maximum number of iterations was
-                       -- reached while the delta was still
-                       -- greater than the minimum delta.
-              deriving (Eq, Read, Show, Enum)
+data Reason = Delta        -- ^ The difference between
+                           -- applications of the cost function
+                           -- dropped below the minimum delta.
+                           -- In other words, it coverged.
+            | MaxIter      -- ^ The maximum number of iterations
+                           -- was reached while the delta was
+                           -- still greater than the minimum delta.
+            | CG CG.Result -- ^ CG_DESCENT returned this result,
+                           -- which brought the derivation
+                           -- process to a halt.
+              deriving (Eq, Read, Show)
 
 -- | Result of a deriviation.
 data Result a =
