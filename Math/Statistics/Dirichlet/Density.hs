@@ -22,7 +22,7 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
 
-import Control.Parallel.Strategies (NFData(..), rwhnf)
+import Control.DeepSeq (NFData(..))
 import Numeric.GSL.Special.Gamma (lngamma)
 import Numeric.GSL.Special.Psi (psi)
 
@@ -49,7 +49,7 @@ instance Read DirichletDensity where
                         readsPrec p list
 
 instance NFData DirichletDensity where
-    rnf = rwhnf
+    rnf DD {} = ()
 
 -- | @empty n x@ is an \"empty\" Dirichlet density with size
 -- @n@ and all alphas set to @x@.

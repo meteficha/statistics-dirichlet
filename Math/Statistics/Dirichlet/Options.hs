@@ -22,7 +22,7 @@ module Math.Statistics.Dirichlet.Options
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
 import qualified Numeric.Optimization.Algorithms.HagerZhang05 as CG
-import Control.Parallel.Strategies (NFData(..))
+import Control.DeepSeq (NFData(..))
 
 -- | A vector used for deriving the parameters of a Dirichlet
 --   density or mixture.

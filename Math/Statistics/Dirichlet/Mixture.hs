@@ -31,7 +31,7 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
 
-import Control.Parallel.Strategies (NFData(..), rwhnf)
+import Control.DeepSeq (NFData(..))
 import Control.Monad.ST
 import Data.Function (fix)
 import Numeric.GSL.Special.Gamma (lngamma)
@@ -72,7 +72,7 @@ instance Read DirichletMixture where
                         readsPrec p list
 
 instance NFData DirichletMixture where
-    rnf = rwhnf
+    rnf DM {} = ()
 
 
 -- | Number of components in a dirichlet mixture.
