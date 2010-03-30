@@ -381,7 +381,7 @@ derive (DM initial_qs initial_as) (Pred {..}) (Step step) ns
       -- Reciprocal of the number of training sequences.
       !recip_m = recip $ fromIntegral $ V.length ns
 
-      -- Functions that work on the alphas only (and not their logs).
+      -- Calculate the sums of the alphas.
       calc_as_sums = M.rowmap U.sum
 
       -- Parameters used by CG_DESCENT.
