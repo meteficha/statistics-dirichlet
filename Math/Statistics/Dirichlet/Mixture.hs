@@ -123,8 +123,7 @@ type Component = (Double, [Double])
 -- non-empty list of components.  Each component has a weight and
 -- a list of alpha values.  The weights sum to 1, all lists must
 -- have the same number of values and every number must be
--- non-negative.  All of these preconditions are verified for
--- clear mistakes.
+-- non-negative.  None of these preconditions are verified.
 fromList :: [Component] -> DirichletMixture
 fromList components =
   let -- Vectors
@@ -134,21 +133,7 @@ fromList components =
       -- Properties of the mixture
       q  = length components
       n  = length (snd $ head components)
-
-      -- Checks
-      c0 = q >= 1
-      c1 = abs (U.sum qs - 1) < 1e-2 -- we're quite permissive here
-      c2 = U.all (>= 0) qs
-      c3 = all ((== n) . length . snd) components
-      c4 = all (all (>= 0)      . snd) components
-      e  = error . ("Dirichlet.Mixture.fromList: " ++)
-  in case (c0, c1, c2, c3, c4) of
-       (False,_,_,_,_) -> e "there must be at least one component"
-       (_,False,_,_,_) -> e "the sum of the weights must be one"
-       (_,_,False,_,_) -> e "all weights must be greater than or equal to zero"
-       (_,_,_,False,_) -> e "every component must have the same size"
-       (_,_,_,_,False) -> e "all alphas must be greater than or equal to zero"
-       _               -> DM qs as
+  in DM qs as
 
 -- | @toList dm@ is the inverse of @fromList@, constructs a list
 -- of components from a Dirichlet mixture.  There are no error
