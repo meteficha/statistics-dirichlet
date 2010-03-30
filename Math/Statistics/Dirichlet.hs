@@ -28,6 +28,9 @@ module Math.Statistics.Dirichlet
     ,Predicate(..)
     ,Reason(..)
     ,Result(..)
+    -- * Training data (re-exported)
+    ,TrainingData
+    ,prepareTraining
     -- * Functions (re-exported)
     ,derive
     ,cost)

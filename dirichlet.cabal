@@ -20,7 +20,7 @@ Library
     base >= 3 && < 5, hmatrix >= 0.1 && < 0.9, vector == 0.5.*,
     deepseq == 1.1.*, nonlinear-optimization == 0.3.*
   Ghc-Options: -Wall -O2
-  Extensions: BangPatterns, RecordWildCards, FlexibleContexts
+  Extensions: BangPatterns, NamedFieldPuns, RecordWildCards, FlexibleContexts
   Exposed-Modules:
     Math.Statistics.Dirichlet,
     Math.Statistics.Dirichlet.Density,
