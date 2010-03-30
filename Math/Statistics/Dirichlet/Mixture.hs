@@ -341,7 +341,7 @@ del_cost_w_worker (!ns, !tns, !ns_sums) dm !as_sums =
 -- verified.
 derive :: DirichletMixture -> Predicate -> StepSize
          -> TrainingVectors -> Result DirichletMixture
-derive (DM initial_qs initial_as) (Pred {..}) (Step step) ns
+derive (DM initial_qs initial_as) (Pred {..}) _ ns
     | V.length ns == 0          = err "empty training data"
     | U.length initial_qs < 1   = err "empty initial weights vector"
     | M.size initial_as < (1,1) = err "empty initial alphas vector"
@@ -349,8 +349,6 @@ derive (DM initial_qs initial_as) (Pred {..}) (Step step) ns
     | minDelta < 0              = err "negative minDelta"
     | jumpDelta < 0             = err "negative jumpDelta"
     | jumpDelta < minDelta      = err "minDelta greater than jumpDelta"
-    | step <= 0                 = err "non-positive step"
-    | step >= 1                 = err "step greater than one"
     | otherwise                 = runST train
     where
       err = error . ("Dirichlet.derive: " ++)
