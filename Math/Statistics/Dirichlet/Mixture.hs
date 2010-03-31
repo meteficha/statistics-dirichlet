@@ -179,6 +179,7 @@ data TrainingData = TD {ns      :: {-# UNPACK #-} !TrainingVectors
                        ,ns_sums :: {-# UNPACK #-} !(U.Vector Double)
                        ,tns     :: {-# UNPACK #-} !Matrix
                        ,zeroes  :: {-# UNPACK #-} ![Int]}
+                    deriving (Eq, Show)
 
 -- | Return the list of columns that are zeroed, counting from zero.
 zeroedCols :: TrainingVectors -> [Int]
