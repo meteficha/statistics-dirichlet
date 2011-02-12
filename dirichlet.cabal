@@ -15,10 +15,18 @@ Synopsis:            Functions for working with Dirichlet densities and
 Description:
     TODO
 
+Flag old_hmatrix
+  Description: Use hmatrix versions prior to 0.9
+  Default: False
+
 Library
   Build-Depends:
-    base >= 3 && < 5, hmatrix >= 0.1 && < 0.9, vector == 0.5.*,
+    base >= 3 && < 5,  vector >= 0.5 && < 0.7,
     deepseq == 1.1.*, nonlinear-optimization == 0.3.*
+  if flag(old_hmatrix)
+    Build-Depends: hmatrix >= 0.1 && < 0.9
+  else
+    Build-Depends: hmatrix-special == 0.1.*
   Ghc-Options: -Wall -O2
   Extensions: BangPatterns, NamedFieldPuns, RecordWildCards, FlexibleContexts
   Exposed-Modules:
