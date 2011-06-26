@@ -1,4 +1,4 @@
-Cabal-Version:       >= 1.2
+Cabal-Version:       >= 1.6
 Build-Type:          Simple
 Tested-With:         GHC
 Category:            Math
@@ -27,7 +27,7 @@ Library
     Build-Depends: hmatrix >= 0.1 && < 0.9
   else
     Build-Depends: hmatrix-special == 0.1.*
-  Ghc-Options: -Wall -O2
+  Ghc-Options: -Wall
   Extensions: BangPatterns, NamedFieldPuns, RecordWildCards, FlexibleContexts
   Exposed-Modules:
     Math.Statistics.Dirichlet,
