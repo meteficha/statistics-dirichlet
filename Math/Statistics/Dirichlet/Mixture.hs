@@ -213,7 +213,7 @@ removeZeroesM zs as =
          ,mRows = M.mRows as
          ,mData = U.backpermute (M.mData as) cols_new}
 
--- | Add zeroed columns to a Dirichlet mixture matrix of
+-- | Add zeroed columns back to a Dirichlet mixture matrix of
 -- densities.
 addZeroesM :: [Int] -> Matrix -> Matrix
 addZeroesM []  = id
@@ -222,9 +222,10 @@ addZeroesM zs' = M.fromVector .
                 M.rows
     where
       add !_ []     xs                 = xs
-      add  _ zs     []                 = map (const 0) zs
-      add  i (z:zs) (x:xs) | i == z    = 0 : add (i+1) zs (x:xs)
-                           | otherwise = x : add (i+1) (z:zs) xs
+      add  _ zs     []                 = map (const zero) zs
+      add  i (z:zs) (x:xs) | i == z    = zero : add (i+1) zs (x:xs)
+                           | otherwise = x    : add (i+1) (z:zs) xs
+      zero = 0.00001
 
 
 
