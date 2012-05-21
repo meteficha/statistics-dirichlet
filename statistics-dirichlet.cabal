@@ -10,8 +10,7 @@ License-File:        LICENSE
 Copyright:           (c) 2009 Felipe A. Lessa
 Author:              Felipe Almeida Lessa
 Maintainer:          felipe.lessa@gmail.com
-Synopsis:            Functions for working with Dirichlet densities and
-		     Dirichlet mixtures on vectors.
+Synopsis:            Functions for working with Dirichlet densities and mixtures on vectors.
 Description:
     TODO
 
