@@ -17,6 +17,9 @@ Description:
     on vectors.  The focus of this package is on deriving these
     distributions from observed data.
     .
+    This package should be treated as experimental code, it has
+    not been battle-tested as much as it would be nice to be.
+    .
     Note that although this package is BSD3-licensed, it uses the
     @nonlinear-optimization@ package which is GPLed.  It should
     be straightforward to use another library in its stead,
