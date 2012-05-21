@@ -7,9 +7,16 @@
 -- Stability   : experimental
 -- Portability : portable
 --
--- This module automatically uses
--- "Math.Statistics.Dirichlet.Density" or
--- "Math.Statistics.Dirichlet.Mixture" with the same API.
+-- This module re-exports functions from
+-- "Math.Statistics.Dirichlet.Mixture" and
+-- "Math.Statistics.Dirichlet.Options" in a more digestable way.
+-- Since this library is under-documented, I recommend reading
+-- the documentation of the symbols re-exported here.
+--
+-- This module does not use "Math.Statistics.Dirichlet.Density"
+-- in any way.  If you don't need mixtures then you should
+-- probably use that module directly since it's faster and more
+-- reliable (less magic happens there).
 --
 --------------------------------------------------------------------------
 
