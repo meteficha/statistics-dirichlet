@@ -25,6 +25,10 @@ Description:
     be straightforward to use another library in its stead,
     though.
 
+Source-repository head
+  type: darcs
+  location: http://patch-tag.com/r/felipe/statistics-dirichlet
+
 Library
   Build-Depends:
       base                   == 4.*
