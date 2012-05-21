@@ -14,27 +14,27 @@
 --------------------------------------------------------------------------
 
 module Math.Statistics.Dirichlet
-    (-- * Data types (re-exported)
-     DirichletMixture(..)
-    ,empty
-    ,Component
-    ,fromList
-    ,toList
-     -- * Options (re-exported)
-    ,TrainingVector
-    ,TrainingVectors
-    ,StepSize(..)
-    ,Delta
-    ,Predicate(..)
-    ,Reason(..)
-    ,Result(..)
-    -- * Training data (re-exported)
-    ,TrainingData
-    ,prepareTraining
-    -- * Functions (re-exported)
-    ,derive
-    ,cost)
-    where
+    ( -- * Data types (re-exported)
+      DirichletMixture(..)
+    , empty
+    , Component
+    , fromList
+    , toList
+      -- * Options (re-exported)
+    , TrainingVector
+    , TrainingVectors
+    , StepSize(..)
+    , Delta
+    , Predicate(..)
+    , Reason(..)
+    , Result(..)
+      -- * Training data (re-exported)
+    , TrainingData
+    , prepareTraining
+      -- * Functions (re-exported)
+    , derive
+    , cost
+    ) where
 
 import Math.Statistics.Dirichlet.Mixture
 import Math.Statistics.Dirichlet.Options

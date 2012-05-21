@@ -27,8 +27,8 @@ module Math.Statistics.Dirichlet.Mixture
       -- * Functions
     , derive
     , cost
-    , del_cost_w)
-    where
+    , del_cost_w
+    ) where
 
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
@@ -435,11 +435,12 @@ derive (DM initial_qs initial_as') (Pred {..}) _ td@(TD {ns,zeroes})
       -- Parameters used by CG_DESCENT.
       verbose = False
       parameters = CG.defaultParameters
-                     {CG.printFinal    = verbose
-                     ,CG.printParams   = verbose
-                     ,CG.verbose       = if verbose then CG.VeryVerbose else CG.Quiet
-                     ,CG.maxItersFac   = max 1 $ fromIntegral maxIter / 20
-                     ,CG.estimateError = CG.RelativeEpsilon (1e-6 * s)}
+                     { CG.printFinal    = verbose
+                     , CG.printParams   = verbose
+                     , CG.verbose       = if verbose then CG.VeryVerbose else CG.Quiet
+                     , CG.maxItersFac   = max 1 $ fromIntegral maxIter / 20
+                     , CG.estimateError = CG.RelativeEpsilon (1e-6 * s)
+                     }
         where (w,h) = M.size initial_as
               s = fromIntegral (w * h * V.length ns)
 
