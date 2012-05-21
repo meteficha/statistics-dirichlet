@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------
 -- | Module    : Math.Statistics.Dirichlet.Matrix
--- Copyright   : (c) 2009 Felipe Lessa
+-- Copyright   : (c) 2009-2012 Felipe Lessa
 -- License     : GPL
 --
 -- Maintainer  : felipe.lessa@gmail.com

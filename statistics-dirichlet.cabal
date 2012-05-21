@@ -7,7 +7,7 @@ Version:             0.6
 Stability:           experimental
 License:             GPL
 License-File:        LICENSE
-Copyright:           (c) 2009 Felipe A. Lessa
+Copyright:           (c) 2009-2012 Felipe A. Lessa
 Author:              Felipe Almeida Lessa
 Maintainer:          felipe.lessa@gmail.com
 Synopsis:            Functions for working with Dirichlet densities and mixtures on vectors.
