@@ -10,13 +10,13 @@
 --------------------------------------------------------------------------
 
 module Math.Statistics.Dirichlet.Density
-    (DirichletDensity(..)
-    ,empty
-    ,fromList
-    ,toList
-    ,derive
-    ,cost)
-    where
+    ( DirichletDensity(..)
+    , empty
+    , fromList
+    , toList
+    , derive
+    , cost
+    ) where
 
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G

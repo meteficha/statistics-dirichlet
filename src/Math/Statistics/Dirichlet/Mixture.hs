@@ -10,24 +10,24 @@
 --------------------------------------------------------------------------
 
 module Math.Statistics.Dirichlet.Mixture
-    (-- * Data types
-     DirichletMixture(..)
-    ,dmComponents
-    ,dmParameters
-    ,dmDensitiesL
-    ,(!!!)
-    ,empty
-    ,Component
-    ,fromList
-    ,toList
-    ,fromDD
-    -- * Training data
-    ,TrainingData
-    ,prepareTraining
-    -- * Functions
-    ,derive
-    ,cost
-    ,del_cost_w)
+    ( -- * Data types
+      DirichletMixture(..)
+    , dmComponents
+    , dmParameters
+    , dmDensitiesL
+    , (!!!)
+    , empty
+    , Component
+    , fromList
+    , toList
+    , fromDD
+      -- * Training data
+    , TrainingData
+    , prepareTraining
+      -- * Functions
+    , derive
+    , cost
+    , del_cost_w)
     where
 
 import qualified Data.Vector as V
@@ -54,11 +54,11 @@ import Math.Statistics.Dirichlet.Util
 
 -- | A Dirichlet mixture.
 data DirichletMixture =
-    DM {dmWeights    :: {-# UNPACK #-} !(U.Vector Double)
-        -- ^ Weights of each density.
-       ,dmDensities  :: {-# UNPACK #-} !M.Matrix
-        -- ^ Values of all parameters of all densities.  This
-        -- matrix has @length dmWeights@ rows.
+    DM { dmWeights    :: !(U.Vector Double)
+         -- ^ Weights of each density.
+       , dmDensities  :: !M.Matrix
+         -- ^ Values of all parameters of all densities.  This
+         -- matrix has @length dmWeights@ rows.
        } deriving (Eq)
 
 instance Show DirichletMixture where
@@ -175,10 +175,10 @@ prepareTraining ns_0 =
     in TD {..}
 
 -- | Pre-processed training vectors (see 'prepareTraining').
-data TrainingData = TD {ns      :: {-# UNPACK #-} !TrainingVectors
-                       ,ns_sums :: {-# UNPACK #-} !(U.Vector Double)
-                       ,tns     :: {-# UNPACK #-} !Matrix
-                       ,zeroes  :: {-# UNPACK #-} ![Int]}
+data TrainingData = TD { ns      :: !TrainingVectors
+                       , ns_sums :: !(U.Vector Double)
+                       , tns     :: !Matrix
+                       , zeroes  :: ![Int]}
                     deriving (Eq, Show)
 
 -- | Return the list of columns that are zeroed, counting from zero.

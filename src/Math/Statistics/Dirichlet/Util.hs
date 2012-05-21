@@ -10,8 +10,9 @@
 --------------------------------------------------------------------------
 
 module Math.Statistics.Dirichlet.Util
-    (infinity
-    ,logBeta)
+    ( infinity
+    , logBeta
+    )
     where
 
 import qualified Data.Vector.Unboxed as U

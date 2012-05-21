@@ -14,33 +14,33 @@
 --------------------------------------------------------------------------
 
 module Math.Statistics.Dirichlet.Matrix
-    (-- * Basic
-     Matrix(..)
-    ,size
-    ,(!)
-     -- * Constructing
-    ,replicate
-    ,replicateRows
-    ,fromVector
-    ,fromVectorT
-     -- * Rows
-    ,rows
-    ,(!!!)
-     -- * Columns
-    ,cols
-    ,col
-     -- * Maps and zips
-    ,umap
-    ,map
-    ,imap
-    ,rowmap
-    ,irowmap
-    ,uzipWith
-    ,zipWith
-    ,izipWith
-    ,rzipWith
-     -- * Other
-    ,transpose
+    ( -- * Basic
+      Matrix(..)
+    , size
+    , (!)
+      -- * Constructing
+    , replicate
+    , replicateRows
+    , fromVector
+    , fromVectorT
+      -- * Rows
+    , rows
+    , (!!!)
+      -- * Columns
+    , cols
+    , col
+      -- * Maps and zips
+    , umap
+    , map
+    , imap
+    , rowmap
+    , irowmap
+    , uzipWith
+    , zipWith
+    , izipWith
+    , rzipWith
+      -- * Other
+    , transpose
     ) where
 
 import Prelude hiding (replicate, map, zipWith)
@@ -53,9 +53,9 @@ import qualified Data.Vector.Unboxed.Mutable as MU
 
 
 -- | A matrix.
-data Matrix = M {mRows :: {-# UNPACK #-} !Int
-                ,mCols :: {-# UNPACK #-} !Int
-                ,mData :: {-# UNPACK #-} !(U.Vector Double)}
+data Matrix = M { mRows :: !Int
+                , mCols :: !Int
+                , mData :: !(U.Vector Double)}
             deriving (Eq, Ord, Show)
 
 -- | Size of the matrix.
@@ -70,26 +70,26 @@ size m = (mRows m, mCols m)
 
 -- | A matrix where all elements are of the same value.
 replicate :: (Int,Int) -> Double -> Matrix
-replicate (r,c) v = M {mRows = r
-                      ,mCols = c
-                      ,mData = U.replicate (r*c) v}
+replicate (r,c) v = M { mRows = r
+                      , mCols = c
+                      , mData = U.replicate (r*c) v}
 
 -- | A matrix where all rows are of the same value.
 replicateRows :: Int -> U.Vector Double -> Matrix
 replicateRows r v =
     let c = U.length v
-    in M {mRows = r
-         ,mCols = c
-         ,mData = U.generate (r*c) (\i -> v U.! (i `mod` c))}
+    in M { mRows = r
+         , mCols = c
+         , mData = U.generate (r*c) (\i -> v U.! (i `mod` c))}
 
 -- | Creates a matrix from a vector of vectors.  It *is not*
 -- verified that the vectors have the right length.
 fromVector :: (G.Vector v (w Double), G.Vector w Double)
            => v (w Double) -> Matrix
 fromVector v =
-    M {mRows = G.length v
-      ,mCols = G.length (G.head v)
-      ,mData = G.unstream $ S.concatMap G.stream $ G.stream v}
+    M { mRows = G.length v
+      , mCols = G.length (G.head v)
+      , mData = G.unstream $ S.concatMap G.stream $ G.stream v}
 
 -- | Creates a matrix from a vector of vectors.  The vectors are
 -- transposed, so @fromVectorT@ is the same as @transpose
@@ -98,12 +98,12 @@ fromVector v =
 fromVectorT :: (G.Vector v (w Double), G.Vector w Double)
            => v (w Double) -> Matrix
 fromVectorT v =
-    M {mRows = c
-      ,mCols = r
-      ,mData = unsafePerformIO $ do
-                 m <- MU.new (r*c)
-                 fillCol m r
-                 G.unsafeFreeze m}
+    M { mRows = c
+      , mCols = r
+      , mData = unsafePerformIO $ do
+                  m <- MU.new (r*c)
+                  fillCol m r
+                  G.unsafeFreeze m}
   where
     r = G.length v
     c = G.length (G.head v)
@@ -201,9 +201,9 @@ transpose :: Matrix -> Matrix
 transpose m =
     let f i = let (r,c) = i `divMod` mRows m
               in m ! (c,r)
-    in M {mRows = mCols m
-         ,mCols = mRows m
-         ,mData = U.generate (mRows m * mCols m) f}
+    in M { mRows = mCols m
+         , mCols = mRows m
+         , mData = U.generate (mRows m * mCols m) f}
 
 {-# RULES
   "transpose/transpose"   forall m. transpose (transpose m) = m;
