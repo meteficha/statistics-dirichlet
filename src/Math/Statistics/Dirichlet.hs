@@ -1,7 +1,7 @@
 ---------------------------------------------------------------------------
 -- | Module    : Math.Statistics.Dirichlet
 -- Copyright   : (c) 2009-2012 Felipe Lessa
--- License     : GPL
+-- License     : BSD3
 --
 -- Maintainer  : felipe.lessa@gmail.com
 -- Stability   : experimental

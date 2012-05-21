@@ -5,14 +5,22 @@ Category:            Math
 Name:                statistics-dirichlet
 Version:             0.6
 Stability:           experimental
-License:             GPL
+License:             BSD3
 License-File:        LICENSE
 Copyright:           (c) 2009-2012 Felipe A. Lessa
 Author:              Felipe Almeida Lessa
 Maintainer:          felipe.lessa@gmail.com
 Synopsis:            Functions for working with Dirichlet densities and mixtures on vectors.
+
 Description:
-    TODO
+    Functions for working with Dirichlet densities and mixtures
+    on vectors.  The focus of this package is on deriving these
+    distributions from observed data.
+    .
+    Note that although this package is BSD3-licensed, it uses the
+    @nonlinear-optimization@ package which is GPLed.  It should
+    be straightforward to use another library in its stead,
+    though.
 
 Library
   Build-Depends:
