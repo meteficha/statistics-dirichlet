@@ -36,3 +36,4 @@ Library
     Math.Statistics.Dirichlet.Mixture,
     Math.Statistics.Dirichlet.Options,
     Math.Statistics.Dirichlet.Util
+  hs-Source-Dirs: src/
