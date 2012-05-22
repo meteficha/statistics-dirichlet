@@ -3,7 +3,7 @@ Build-Type:          Simple
 Tested-With:         GHC
 Category:            Math
 Name:                statistics-dirichlet
-Version:             0.6
+Version:             0.6.1
 Stability:           experimental
 License:             BSD3
 License-File:        LICENSE
@@ -35,7 +35,7 @@ Library
     , deepseq                == 1.3.*
     , vector                 == 0.9.*
     , nonlinear-optimization == 0.3.*
-    , hmatrix-special        == 0.1.*
+    , hmatrix-special        == 0.2.*
 
   Ghc-Options: -Wall
   Extensions: BangPatterns, NamedFieldPuns, RecordWildCards, FlexibleContexts
