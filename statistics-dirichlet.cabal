@@ -26,7 +26,7 @@ Description:
     though.
 
 Source-repository head
-  type: darcs
+  type: git
   location: https://github.com/meteficha/statistics-dirichlet
 
 Library
