@@ -27,7 +27,7 @@ Description:
 
 Source-repository head
   type: darcs
-  location: http://patch-tag.com/r/felipe/statistics-dirichlet
+  location: https://github.com/meteficha/statistics-dirichlet
 
 Library
   Build-Depends:
